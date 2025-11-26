@@ -1,0 +1,16 @@
+/* CategoryPieChart CSS Module - Using Tailwind classes */
+.chartContainer {
+  @apply bg-white p-4 rounded-lg shadow-md;
+}
+
+.chartWrapper {
+  @apply w-full h-96;
+}
+
+.loadingState {
+  @apply flex items-center justify-center h-96 text-gray-500;
+}
+
+.errorState {
+  @apply flex items-center justify-center h-96 text-red-500;
+}
