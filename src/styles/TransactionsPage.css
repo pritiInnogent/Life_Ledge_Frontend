@@ -1,0 +1,47 @@
+.transactions-card {
+  background: white;
+  padding: 20px;
+  border-radius: 14px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+}
+
+.filter-dropdown {
+  border: 1px solid #ddd;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 15px;
+  background: white;
+}
+
+.transactions-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.transactions-table th {
+  text-align: left;
+  padding: 10px;
+  font-weight: 600;
+  color: #555;
+}
+
+.transactions-table td {
+  padding: 10px;
+  border-top: 1px solid #eee;
+}
+
+.text-red {
+  color: #e33333;
+  font-weight: 600;
+}
+
+.text-green {
+  color: #1a9c49;
+  font-weight: 600;
+}
+
+.no-data {
+  padding: 20px;
+  color: gray;
+}

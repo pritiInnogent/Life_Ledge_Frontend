@@ -1,0 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* small helpers used in example */
+html, body, #root { height: 100%; }
+body { @apply bg-gradient-to-br from-cyan-400 via-blue-500 to-purple-600; }
