@@ -27,7 +27,7 @@ export default function DashboardLayout() {
   const navigate = useNavigate()
 
   return (
-    <div className="min-h-screen flex bg-gray-100">
+    <div className="h-screen flex bg-gray-100 overflow-hidden">
 
       {/* MOBILE HAMBURGER BUTTON */}
       <button
@@ -64,16 +64,16 @@ export default function DashboardLayout() {
           <X size={24} className="text-white" />
         </button>
 
-        <div className="p-6">
+        <div className="p-4 overflow-y-auto h-full">
           
           {/* Branding */}
-          <div className="flex items-center gap-3 mb-10 mt-3">
-            <div className="w-14 h-14 bg-gradient-to-br from-yellow-400 to-pink-500 rounded-2xl flex items-center justify-center shadow-xl">
-              <Wallet className="w-8 h-8 text-white" />
+          <div className="flex items-center gap-2 mb-6 mt-2">
+            <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-pink-500 rounded-xl flex items-center justify-center shadow-xl">
+              <Wallet className="w-6 h-6 text-white" />
             </div>
            <h1
                  onClick={() => navigate('/')}
-                     className="text-3xl font-extrabold text-white cursor-pointer"
+                     className="text-xl font-extrabold text-white cursor-pointer"
                       >
                 LifeLedger
                </h1>
@@ -93,27 +93,27 @@ export default function DashboardLayout() {
                     setSidebarOpen(false) // mobile auto-close
                   }}
                   className={`
-                    w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-semibold transition-all
+                    w-full flex items-center gap-3 px-3 py-3 rounded-xl font-semibold transition-all
                     ${isActive
                       ? 'bg-white/20 shadow-lg text-white scale-105'
                       : 'text-gray-300 hover:bg-white/10 hover:text-white'}
                   `}
                 >
-                  <span className="text-2xl">{item.emoji}</span>
-                  <span className="text-lg">{item.label}</span>
+                  <span className="text-xl">{item.emoji}</span>
+                  <span className="text-sm">{item.label}</span>
                 </button>
               )
             })}
           </nav>
 
           {/* LOGOUT BUTTON */}
-          <div className="mt-10">
+          <div className="mt-6">
             <button
               onClick={logout}
-              className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-red-300 hover:bg-red-500/10"
+              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-red-300 hover:bg-red-500/10"
             >
               <LogOut className="w-5 h-5" />
-              <span className="text-lg">Logout</span>
+              <span className="text-sm">Logout</span>
             </button>
           </div>
 
@@ -121,7 +121,7 @@ export default function DashboardLayout() {
       </aside>
 
       {/* MAIN CONTENT */}
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 flex flex-col h-screen overflow-hidden">
 
         {/* HEADER */}
         <header className="bg-white/80 backdrop-blur p-6 border-b shadow-sm flex items-center justify-between">
@@ -153,7 +153,7 @@ export default function DashboardLayout() {
 
         </header>
 
-        <div className="p-8">
+        <div className="flex-1 p-8 overflow-y-auto">
           <Outlet />
         </div>
 
