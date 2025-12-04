@@ -9,15 +9,15 @@ import { useAuth } from '../contexts/AuthContext'
 
 // NAVIGATION LINK DATA
 const navItems = [
-  { path: '/app/dashboard', label: 'Dashboard', emoji: '🏠' },
-  { path: '/app/transactions', label: 'Transactions', emoji: '💳' },
-  { path: '/app/analytics', label: 'Analytics', emoji: '📊' },
-  { path: '/app/categories', label: 'Categories', emoji: '🎨' },
-  { path: '/app/recurring', label: 'Recurring', emoji: '🔄' },
-  { path: '/app/goals', label: 'Goals', emoji: '🎯' },
-  { path: '/app/insights', label: 'AI Insights', emoji: '🤖' },
-  { path: '/app/import', label: 'Import', emoji: '📤' },
-  { path: '/app/settings', label: 'Settings', emoji: '⚙️' },
+  { path: '/app/dashboard', label: 'Dashboard', icon: Home },
+  { path: '/app/transactions', label: 'Transactions', icon: Receipt },
+  { path: '/app/analytics', label: 'Analytics', icon: BarChart3 },
+  { path: '/app/categories', label: 'Categories', icon: PieChart },
+  { path: '/app/recurring', label: 'Recurring', icon: Calendar },
+  { path: '/app/goals', label: 'Goals', icon: Target },
+  { path: '/app/insights', label: 'AI Insights', icon: TrendingUp },
+  { path: '/app/import', label: 'Import', icon: Upload },
+  { path: '/app/settings', label: 'Settings', icon: Settings },
 ]
 
 export default function DashboardLayout() {
@@ -99,7 +99,7 @@ export default function DashboardLayout() {
                       : 'text-gray-300 hover:bg-white/10 hover:text-white'}
                   `}
                 >
-                  <span className="text-2xl">{item.emoji}</span>
+                  <item.icon className="w-6 h-6" />
                   <span className="text-lg">{item.label}</span>
                 </button>
               )

@@ -2,7 +2,7 @@ import React from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { Wallet, TrendingUp, Shield, Zap, Target, BarChart3, ArrowRight, Sparkles } from 'lucide-react'
-import '../styles/Homepage.css'
+import './Homepage.css'
 
 const FeatureCard = ({ icon: Icon, title, description }) => (
   <div className="feature-card">

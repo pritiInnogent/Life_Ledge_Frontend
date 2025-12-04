@@ -1,5 +1,7 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { Zap, DollarSign, Calendar, Receipt, BarChart3, Target, Activity } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import ApiService from '../services/api'
 
 const StatCard = ({ emoji, value, label, change }) => (
   <div className="bg-white rounded-2xl p-6 shadow">
@@ -13,11 +15,63 @@ const StatCard = ({ emoji, value, label, change }) => (
 )
 
 export default function DashboardPage() {
+  const navigate = useNavigate()
+  const [totalSpent, setTotalSpent] = useState(0)
+  const [transactionCount, setTransactionCount] = useState(0)
+  const [recentTransactions, setRecentTransactions] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        // Fetch recent transactions first (this works)
+        const recentResponse = await ApiService.getRecentTransactions()
+        setRecentTransactions(recentResponse || [])
+        
+        // Try other endpoints individually with error handling
+        try {
+          const spentResponse = await ApiService.getTotalSpent()
+          const totalSpentValue = typeof spentResponse === 'number' ? spentResponse : 
+                                 spentResponse?.totalSpent || spentResponse?.data || 0
+          setTotalSpent(totalSpentValue)
+        } catch (spentError) {
+          console.error('Total spent API failed:', spentError)
+        }
+        
+        try {
+          const countResponse = await ApiService.getTransactionCount()
+          const countValue = typeof countResponse === 'number' ? countResponse : 
+                            countResponse?.count || countResponse?.transactionCount || countResponse?.data || 0
+          setTransactionCount(countValue)
+        } catch (countError) {
+          console.error('Transaction count API failed:', countError)
+        }
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error)
+        // Keep default values on error
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchDashboardData()
+  }, [])
+
   const stats = [
-    { emoji: '💸', value: '₹45,280', label: 'Total Spent', change: '+12%' },
+    { 
+      emoji: '💸', 
+      value: loading ? '...' : `₹${totalSpent.toLocaleString()}`, 
+      label: 'Total Spent', 
+      change: '+12%' 
+    },
     { emoji: '📅', value: '12', label: 'Subscriptions', change: '2 new' },
     { emoji: '💰', value: '₹24,720', label: 'Budget Left', change: '55%' },
-    { emoji: '🧾', value: '143', label: 'Transactions', change: '+8%' },
+    { 
+      emoji: '🧾', 
+      value: loading ? '...' : transactionCount.toString(), 
+      label: 'Transactions', 
+      change: '+8%' 
+    },
   ]
 
   return (
@@ -29,21 +83,34 @@ export default function DashboardPage() {
         <div className="bg-white p-6 rounded-2xl shadow">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3"><Activity className="w-6 h-6" /><h3 className="font-black">Recent Transactions</h3></div>
-            <button className="text-sm text-purple-600 font-bold">View All →</button>
+            <button 
+              onClick={() => navigate('/app/transactions')}
+              className="text-sm text-purple-600 font-bold hover:text-purple-800"
+            >
+              View All →
+            </button>
           </div>
           <div className="divide-y">
-            {['Swiggy','Spotify','Uber','Amazon'].map((n,i) => (
-              <div key={i} className="py-3 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">{['🍕','🎵','🚗','🛒'][i]}</div>
-                  <div>
-                    <div className="font-black">{n}</div>
-                    <div className="text-sm text-gray-600">Category</div>
+            {loading ? (
+              <div className="py-8 text-center text-gray-500">Loading...</div>
+            ) : recentTransactions.length > 0 ? (
+              recentTransactions.map((tx, i) => (
+                <div key={tx.id || i} className="py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">💳</div>
+                    <div>
+                      <div className="font-black">{tx.merchant || tx.description || 'Transaction'}</div>
+                      <div className="text-sm text-gray-600">{new Date(tx.date).toLocaleDateString()}</div>
+                    </div>
+                  </div>
+                  <div className={`text-right font-black ${tx.amount < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {tx.amount < 0 ? '-' : '+'}₹{Math.abs(tx.amount).toLocaleString()}
                   </div>
                 </div>
-                <div className="text-right font-black text-red-600">-₹{[450,119,240,1580][i]}</div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <div className="py-8 text-center text-gray-500">No recent transactions</div>
+            )}
           </div>
         </div>
         <div className="bg-white p-6 rounded-2xl shadow">

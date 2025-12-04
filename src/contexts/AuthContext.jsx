@@ -13,17 +13,18 @@ export function AuthProvider({ children }) {
     const loginTime = localStorage.getItem('loginTime')
     
     if (token && storedUser && loginTime) {
-      const now = Date.now()
-      const twentyMinutes = 20 * 60 * 1000
+      const currentTime = Date.now()
+      const dayInMs = 24 * 60 * 60 * 1000 // 24 hours
       
-      if (now - parseInt(loginTime) < twentyMinutes) {
+      if (currentTime - parseInt(loginTime) > dayInMs) {
+        // Auto logout after 24 hours
+        clearAuthData()
+      } else {
         try {
           setUser(JSON.parse(storedUser))
         } catch (error) {
           clearAuthData()
         }
-      } else {
-        clearAuthData()
       }
     }
     setLoading(false)
@@ -45,8 +46,8 @@ export function AuthProvider({ children }) {
       // Create user object from login response
       const user = {
         userId: response.userId,
-        email: response.email,
-        name: response.name
+        email: response.email || email,
+        name: response.name || email.split('@')[0]
       }
       
       localStorage.setItem('user', JSON.stringify(user))
