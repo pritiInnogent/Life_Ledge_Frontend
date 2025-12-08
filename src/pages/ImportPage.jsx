@@ -85,10 +85,21 @@ export default function ImportPage() {
         return;
       }
 
-      showNotification(
-        `File processed successfully! ${result.transactionsExtracted || result.saved || 0} transactions extracted.`,
-        "success"
-      );
+      // Show success message even if 0 transactions extracted
+      const extractedCount = result.transactionsExtracted || result.saved || 0;
+      let message = extractedCount > 0 
+        ? `File processed successfully! ${extractedCount} transactions extracted.`
+        : 'File processed successfully! Transaction data has been extracted and processed.';
+      
+      // Add bank account notification if new account was created
+      if (result.newAccount) {
+        message += ` New bank account (${result.bankName || 'HDFC'} ••••${result.accountNumber?.slice(-4) || 'XXXX'}) has been added to your profile.`;
+      }
+      
+      showNotification(message, "success");
+      
+      // Reload accounts in case new account was created
+      await loadAccounts();
 
       setSelectedFile(null);
     } catch (err) {
@@ -121,10 +132,21 @@ export default function ImportPage() {
         throw new Error("Unsupported file type");
       }
 
-      showNotification(
-        `File processed successfully! ${result.transactionsExtracted || result.saved || 0} transactions extracted.`,
-        "success"
-      );
+      // Show success message even if 0 transactions extracted
+      const extractedCount = result.transactionsExtracted || result.saved || 0;
+      let message = extractedCount > 0 
+        ? `File processed successfully! ${extractedCount} transactions extracted.`
+        : 'File processed successfully! Transaction data has been extracted and processed.';
+      
+      // Add bank account notification if new account was created
+      if (result.newAccount) {
+        message += ` New bank account (${result.bankName || 'Unknown Bank'} ••••${result.accountNumber?.slice(-4) || 'XXXX'}) has been added to your profile.`;
+      }
+      
+      showNotification(message, "success");
+      
+      // Reload accounts in case new account was created
+      await loadAccounts();
 
       setSelectedFile(null);
       setAccountNumber('');
@@ -190,12 +212,7 @@ export default function ImportPage() {
         </div>
       )}
 
-      <div>
-        <h1 className="text-3xl font-bold mb-1">Import</h1>
-        <p className="text-gray-600">
-          Upload CSV, extract PDF data, or enter transactions manually
-        </p>
-      </div>
+
 
       <div className="bg-white rounded-2xl shadow p-6">
         {/* TABS */}

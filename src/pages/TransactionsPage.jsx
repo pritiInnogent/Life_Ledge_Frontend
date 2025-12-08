@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
+import { ArrowUpCircle, ArrowDownCircle } from "lucide-react";
 import apiService from "../services/api";
-import "../styles/TransactionsPage.css";
 
 const DATE_FILTERS = [
-  { key: "10_days", label: "Last 10 Days", days: 10 },
-  { key: "1_month", label: "Last 1 Month", days: 30 },
-  { key: "6_months", label: "Last 6 Months", days: 182 },
-  { key: "1_year", label: "Last 1 Year", days: 365 },
+  { key: "10_days", label: "10 Days", days: 10 },
+  { key: "1_month", label: "1 Month", days: 30 },
+  { key: "3_months", label: "3 Months", days: 90 },
+  { key: "6_months", label: "6 Months", days: 182 },
+  { key: "1_year", label: "1 Year", days: 365 },
   { key: "all", label: "All Time", days: null },
 ];
 
@@ -18,14 +19,17 @@ const TYPE_FILTERS = [
 
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState([]);
+  const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const [accountFilter, setAccountFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("10_days");
   const [typeFilter, setTypeFilter] = useState("all");
 
   useEffect(() => {
     loadTransactions();
+    loadAccounts();
   }, []);
 
   async function loadTransactions() {
@@ -46,15 +50,27 @@ export default function TransactionsPage() {
     }
   }
 
+  async function loadAccounts() {
+    try {
+      const data = await apiService.getAccounts();
+      setAccounts(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Error fetching accounts:", err);
+    }
+  }
+
+  // Compute cutoff date
   const computeCutoff = (key) => {
     const f = DATE_FILTERS.find((d) => d.key === key);
     if (!f || !f.days) return null;
+
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - f.days);
     cutoff.setHours(0, 0, 0, 0);
     return cutoff;
   };
 
+  // Filter transactions
   const filtered = useMemo(() => {
     if (!transactions.length) return [];
 
@@ -63,121 +79,169 @@ export default function TransactionsPage() {
     return transactions.filter((t) => {
       const amount = Number(t.amount || 0);
 
-      // Better date parsing - handle multiple formats
-      let txDate = null;
-      if (t.date) {
-        // Handle ISO string, date string, or timestamp
-        txDate = new Date(t.date);
-        // If invalid date, try parsing as YYYY-MM-DD
-        if (isNaN(txDate.getTime())) {
-          const parts = t.date.split('-');
-          if (parts.length === 3) {
-            txDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+      // ---- ACCOUNT FILTER ----
+      if (accountFilter !== "all" && t.bankAccountId !== accountFilter) {
+        return false;
+      }
+
+      // ---- DATE FILTER ----
+      if (cutoff) {
+        let txDate = null;
+
+        if (t.date) {
+          txDate = new Date(t.date);
+
+          // Fix for yyyy-mm-dd strings that sometimes fail
+          if (isNaN(txDate.getTime())) {
+            const p = t.date.split("-");
+            if (p.length === 3) {
+              txDate = new Date(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2]));
+            }
           }
         }
-      }
 
-      // Date filter - only apply if we have a valid cutoff and transaction date
-      if (cutoff && txDate && !isNaN(txDate.getTime())) {
-        // Set transaction date to start of day for comparison
-        const txDateStart = new Date(txDate);
-        txDateStart.setHours(0, 0, 0, 0);
-        
-        if (txDateStart < cutoff) {
-          return false;
+        if (txDate && !isNaN(txDate.getTime())) {
+          const startDay = new Date(txDate);
+          startDay.setHours(0, 0, 0, 0);
+          if (startDay < cutoff) return false;
         }
       }
 
-      // Type filter
-      if (typeFilter === "credit" && amount <= 0) return false;
-      if (typeFilter === "debit" && amount >= 0) return false;
+      // ---- TYPE FILTER (actual fix) ----
+      const type = t.typeTransaction?.toUpperCase(); // CREDIT / DEBIT
+
+      if (typeFilter === "credit" && type !== "CREDIT") return false;
+      if (typeFilter === "debit" && type !== "DEBIT") return false;
 
       return true;
     });
-  }, [transactions, dateFilter, typeFilter]);
+  }, [transactions, accountFilter, dateFilter, typeFilter]);
 
   const fmtAmount = (amt) =>
     Number(amt).toLocaleString("en-IN", { maximumFractionDigits: 2 });
 
   return (
-    <div className="p-6">
-      <h1 className="text-3xl font-bold mb-1">Transactions</h1>
-      <p className="text-gray-600 mb-6">View all your recent transactions</p>
-
-      <div className="transactions-card p-6">
-        <div className="flex justify-between mb-4">
+    <div className="p-6 space-y-6">
+      {/* Filters */}
+      <div className="bg-white rounded-2xl p-6 shadow">
+        <div className="flex justify-between items-center mb-4">
           <div>
-            <h2 className="text-lg font-semibold">Transaction History</h2>
-            <p className="text-sm text-gray-500">
-              Showing: <strong>{filtered.length}</strong> transactions from{" "}
+            <p className="text-sm text-gray-600">
+              Showing <span className="font-semibold text-purple-600">{filtered.length}</span> transactions from{" "}
               <strong>{DATE_FILTERS.find(d => d.key === dateFilter)?.label}</strong>
-              {typeFilter !== 'all' && (
+              {typeFilter !== "all" && (
                 <span> • <strong>{TYPE_FILTERS.find(t => t.key === typeFilter)?.label}</strong></span>
               )}
             </p>
           </div>
 
           <div className="flex gap-3">
-            <select
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              className="range-select"
-            >
-              {DATE_FILTERS.map((x) => (
-                <option key={x.key} value={x.key}>{x.label}</option>
-              ))}
-            </select>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Bank Account</label>
+              <select
+                value={accountFilter}
+                onChange={(e) => setAccountFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              >
+                <option value="all">All Accounts</option>
+                {accounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.bankName} ••••{account.last4Digits}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              className="range-select"
-            >
-              {TYPE_FILTERS.map((x) => (
-                <option key={x.key} value={x.key}>{x.label}</option>
-              ))}
-            </select>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Time Period</label>
+              <select
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              >
+                {DATE_FILTERS.map((x) => (
+                  <option key={x.key} value={x.key}>{x.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Transaction Type</label>
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              >
+                {TYPE_FILTERS.map((x) => (
+                  <option key={x.key} value={x.key}>{x.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
+      </div>
 
-        {loading && <p>Loading...</p>}
-        {error && <p className="text-red-600 text-center">{error}</p>}
+      {/* Transactions */}
+      <div className="bg-white rounded-2xl shadow">
+        {loading && (
+          <div className="p-8 text-center">
+            <div className="animate-spin w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading transactions...</p>
+          </div>
+        )}
+        
+        {error && (
+          <div className="p-8 text-center">
+            <p className="text-red-600">{error}</p>
+          </div>
+        )}
 
         {!loading && filtered.length === 0 ? (
-          <p className="text-center text-gray-500 py-10">No transactions found.</p>
+          <div className="p-8 text-center">
+            <p className="text-gray-500 text-lg">No transactions found</p>
+          </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full transactions-table">
-              <thead>
-                <tr className="text-left text-gray-700">
-                  <th className="p-3">Date</th>
-                  <th className="p-3">Merchant</th>
-                  <th className="p-3">Notes</th>
-                  <th className="p-3">Amount</th>
-                </tr>
-              </thead>
+          <div className="divide-y divide-gray-100">
+            {filtered.map((txn) => {
+              const amt = Number(txn.amount);
+              const type = txn.typeTransaction?.toUpperCase();
+              const isDebit = type === "DEBIT";
 
-              <tbody>
-                {filtered.map((txn) => {
-                  const amt = Number(txn.amount);
-
-                  return (
-                    <tr key={txn.id} className="hover:bg-gray-50">
-                      <td className="p-3">{txn.date}</td>
-                      <td className="p-3">{txn.merchant}</td>
-                      <td className="p-3">{txn.notes}</td>
-                      <td
-                        className={`p-3 ${
-                          amt < 0 ? "text-red-600" : "text-green-600"
-                        }`}
-                      >
-                        ₹ {fmtAmount(amt)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+              return (
+                <div key={txn.id} className="p-4 hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        isDebit ? 'bg-red-100' : 'bg-green-100'
+                      }`}>
+                        {isDebit ? (
+                          <ArrowDownCircle className="w-5 h-5 text-red-600" />
+                        ) : (
+                          <ArrowUpCircle className="w-5 h-5 text-green-600" />
+                        )}
+                      </div>
+                      
+                      <div>
+                        <div className="font-medium text-gray-900">{txn.merchant}</div>
+                        <div className="text-sm text-gray-500">{txn.notes}</div>
+                        <div className="text-xs text-gray-400">{txn.date}</div>
+                      </div>
+                    </div>
+                    
+                    <div className="text-right">
+                      <div className={`text-lg font-bold ${
+                        isDebit ? 'text-red-600' : 'text-green-600'
+                      }`}>
+                        {isDebit ? "-" : "+"}₹{fmtAmount(Math.abs(amt))}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {isDebit ? 'Debit' : 'Credit'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

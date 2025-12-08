@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import { Calendar, Plus, DollarSign, Clock, AlertCircle, CheckCircle2, Repeat, CreditCard, Trash2 } from 'lucide-react'
+import { Calendar, Plus, DollarSign, Clock, AlertCircle, CheckCircle2, Repeat, CreditCard, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
 import ApiService from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 
-const RecurringCard = ({ recurring, onDelete }) => {
+const RecurringCard = ({ recurring, onDelete, onEdit }) => {
   const nextPayment = new Date(recurring.nextPayment)
   const daysUntilNext = Math.ceil((nextPayment - new Date()) / (1000 * 60 * 60 * 24))
   const isOverdue = daysUntilNext < 0
@@ -36,8 +36,16 @@ const RecurringCard = ({ recurring, onDelete }) => {
         <div className="flex items-center gap-2">
           {getStatusIcon()}
           <button 
+            onClick={() => onEdit(recurring)}
+            className="text-gray-400 hover:text-blue-600 transition-colors"
+            title="Edit"
+          >
+            <Calendar className="w-4 h-4" />
+          </button>
+          <button 
             onClick={() => onDelete(recurring.id)}
             className="text-gray-400 hover:text-red-600 transition-colors"
+            title="Delete"
           >
             <Trash2 className="w-4 h-4" />
           </button>
@@ -239,6 +247,108 @@ const RecurringForm = ({ recurring, onSave, onCancel }) => {
   )
 }
 
+const CalendarView = ({ subscriptions }) => {
+  const [currentDate, setCurrentDate] = useState(new Date())
+  
+  const getDaysInMonth = (date) => {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
+  }
+  
+  const getFirstDayOfMonth = (date) => {
+    return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
+  }
+  
+  const getPaymentsForDate = (date) => {
+    const dateStr = date.toISOString().split('T')[0]
+    return subscriptions.filter(sub => sub.nextPayment === dateStr)
+  }
+  
+  const navigateMonth = (direction) => {
+    setCurrentDate(prev => {
+      const newDate = new Date(prev)
+      newDate.setMonth(prev.getMonth() + direction)
+      return newDate
+    })
+  }
+  
+  const daysInMonth = getDaysInMonth(currentDate)
+  const firstDay = getFirstDayOfMonth(currentDate)
+  const monthYear = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  
+  return (
+    <div className="bg-white rounded-2xl p-6 shadow">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-xl font-black text-gray-900">Payment Calendar</h3>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigateMonth(-1)}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <span className="font-bold text-lg">{monthYear}</span>
+          <button
+            onClick={() => navigateMonth(1)}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-7 gap-1 mb-2">
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+          <div key={day} className="p-2 text-center text-sm font-bold text-gray-600">
+            {day}
+          </div>
+        ))}
+      </div>
+      
+      <div className="grid grid-cols-7 gap-1">
+        {Array.from({ length: firstDay }, (_, i) => (
+          <div key={`empty-${i}`} className="p-2 h-20"></div>
+        ))}
+        
+        {Array.from({ length: daysInMonth }, (_, i) => {
+          const day = i + 1
+          const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
+          const payments = getPaymentsForDate(date)
+          const isToday = date.toDateString() === new Date().toDateString()
+          
+          return (
+            <div
+              key={day}
+              className={`p-2 h-20 border rounded-lg transition-colors ${
+                isToday ? 'bg-purple-100 border-purple-300' : 'border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              <div className={`text-sm font-medium mb-1 ${
+                isToday ? 'text-purple-700' : 'text-gray-700'
+              }`}>
+                {day}
+              </div>
+              <div className="space-y-1">
+                {payments.slice(0, 2).map(payment => (
+                  <div
+                    key={payment.id}
+                    className="text-xs bg-purple-600 text-white px-1 py-0.5 rounded truncate"
+                    title={`${payment.name} - ₹${payment.amount}`}
+                  >
+                    {payment.name}
+                  </div>
+                ))}
+                {payments.length > 2 && (
+                  <div className="text-xs text-gray-500">+{payments.length - 2} more</div>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function RecurringPage() {
   const { user } = useAuth()
   const [subscriptions, setSubscriptions] = useState([])
@@ -247,6 +357,7 @@ export default function RecurringPage() {
   const [showForm, setShowForm] = useState(false)
   const [editingSubscription, setEditingSubscription] = useState(null)
   const [filter, setFilter] = useState('all')
+
   
   useEffect(() => {
     loadSubscriptions()
@@ -256,8 +367,41 @@ export default function RecurringPage() {
     try {
       setLoading(true)
       setError(null)
-      const data = await ApiService.getRecurringPayments()
-      setSubscriptions(data || [])
+      
+      // Get from localStorage or use demo data
+      const saved = localStorage.getItem('recurringPayments')
+      if (saved) {
+        setSubscriptions(JSON.parse(saved))
+      } else {
+        const demoData = [
+          {
+            id: 1,
+            name: 'Netflix',
+            category: 'Entertainment',
+            amount: 649,
+            frequency: 'monthly',
+            nextPayment: '2024-12-15'
+          },
+          {
+            id: 2,
+            name: 'Spotify Premium',
+            category: 'Music',
+            amount: 119,
+            frequency: 'monthly',
+            nextPayment: '2024-12-20'
+          },
+          {
+            id: 3,
+            name: 'Amazon Prime',
+            category: 'Shopping',
+            amount: 1499,
+            frequency: 'yearly',
+            nextPayment: '2025-03-15'
+          }
+        ]
+        setSubscriptions(demoData)
+        localStorage.setItem('recurringPayments', JSON.stringify(demoData))
+      }
     } catch (err) {
       console.error('Error loading subscriptions:', err)
       setError(err.message)
@@ -270,13 +414,20 @@ export default function RecurringPage() {
     try {
       setError(null)
       
+      let updatedSubs
       if (subData.id) {
-        await ApiService.updateRecurringPayment(subData.id, subData)
+        // Update existing
+        updatedSubs = subscriptions.map(sub => 
+          sub.id === subData.id ? subData : sub
+        )
       } else {
-        await ApiService.createRecurringPayment(subData)
+        // Add new
+        const newSub = { ...subData, id: Date.now() }
+        updatedSubs = [...subscriptions, newSub]
       }
       
-      await loadSubscriptions()
+      setSubscriptions(updatedSubs)
+      localStorage.setItem('recurringPayments', JSON.stringify(updatedSubs))
       setShowForm(false)
       setEditingSubscription(null)
     } catch (err) {
@@ -287,8 +438,9 @@ export default function RecurringPage() {
   
   const deleteSubscription = async (subId) => {
     try {
-      await ApiService.deleteRecurringPayment(subId)
-      await loadSubscriptions()
+      const updatedSubs = subscriptions.filter(sub => sub.id !== subId)
+      setSubscriptions(updatedSubs)
+      localStorage.setItem('recurringPayments', JSON.stringify(updatedSubs))
     } catch (err) {
       console.error('Error deleting subscription:', err)
       setError(err.message)
@@ -335,11 +487,7 @@ export default function RecurringPage() {
         </div>
       )}
       
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-black">Recurring Payments</h1>
-          <p className="text-gray-600 font-semibold">Manage your subscriptions and recurring expenses</p>
-        </div>
+      <div className="flex items-center justify-end">
         <button
           onClick={() => setShowForm(true)}
           className="flex items-center gap-2 bg-purple-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-purple-700 transition-colors"
@@ -380,45 +528,9 @@ export default function RecurringPage() {
         </div>
       </div>
       
-      <div className="flex gap-4">
-        {['all', 'due-soon', 'overdue', 'monthly', 'yearly'].map(type => (
-          <button
-            key={type}
-            onClick={() => setFilter(type)}
-            className={`px-4 py-2 rounded-lg font-bold capitalize transition-colors ${
-              filter === type 
-                ? 'bg-purple-600 text-white' 
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            {type.replace('-', ' ')}
-          </button>
-        ))}
-      </div>
+
       
-      {filteredSubscriptions.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredSubscriptions.map(subscription => (
-            <RecurringCard
-              key={subscription.id}
-              recurring={subscription}
-              onDelete={deleteSubscription}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="bg-white rounded-2xl p-12 shadow text-center">
-          <Repeat className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="font-black text-xl text-gray-600 mb-2">No Subscriptions Yet</h3>
-          <p className="text-gray-500 mb-6">Add your first subscription to start tracking recurring payments</p>
-          <button
-            onClick={() => setShowForm(true)}
-            className="bg-purple-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-purple-700 transition-colors"
-          >
-            Add Your First Subscription
-          </button>
-        </div>
-      )}
+      <CalendarView subscriptions={subscriptions} />
       
       {showForm && (
         <RecurringForm

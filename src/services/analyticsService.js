@@ -61,4 +61,4 @@ class AnalyticsService {
   }
 }
 
-export default AnalyticsService
+export default AnalyticsService;

@@ -15,7 +15,6 @@ export default function Sidebar() {
     { path: "/app/goals", label: "Goals", icon: Target, emoji: "🎯" },
     { path: "/app/insights", label: "AI Insights", icon: TrendingUp, emoji: "🤖" },
     { path: "/app/import", label: "Import", icon: Upload, emoji: "📤" },
-    { path: "/app/settings", label: "Settings", icon: Settings, emoji: "⚙️" },
   ];
 
   return (
@@ -38,7 +37,7 @@ export default function Sidebar() {
 
       {/* Sidebar Panel */}
       <aside
-        className={`fixed md:static top-0 left-0 h-full w-72 bg-gradient-to-br from-purple-900 via-blue-900 to-cyan-900 text-white shadow-xl border-r border-purple-400/40
+        className={`fixed top-0 left-0 h-screen w-72 bg-gradient-to-br from-purple-900 via-blue-900 to-cyan-900 text-white shadow-xl border-r border-purple-400/40 overflow-hidden
           transition-transform duration-300 z-50
           ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
       >

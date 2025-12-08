@@ -90,8 +90,21 @@ export default function ProfilePage() {
     const file = event.target.files[0];
     if (!file) return;
 
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setError('Please select a valid image file');
+      return;
+    }
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image size must be less than 5MB');
+      return;
+    }
+
     try {
       setUploadingImage(true);
+      setError('');
 
       const formData = new FormData();
       formData.append("file", file);
@@ -100,9 +113,11 @@ export default function ProfilePage() {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      setProfile((prev) => ({ ...prev, profilePicUrl: response.url }));
+      // Update profile with Cloudinary URL
+      setProfile((prev) => ({ ...prev, profilePicUrl: response.profilePicUrl || response.url }));
       setSuccess("Profile picture updated!");
     } catch (err) {
+      console.error('Upload error:', err);
       setError("Failed to upload image");
     } finally {
       setUploadingImage(false);
@@ -145,10 +160,6 @@ export default function ProfilePage() {
   const [removingAccountId, setRemovingAccountId] = useState(null);
 
   const handleRemoveAccount = async (accountId, bankName) => {
-    if (!confirm(`Are you sure you want to remove ${bankName}?`)) {
-      return;
-    }
-
     try {
       setRemovingAccountId(accountId);
       await apiService.deleteAccount(accountId);
@@ -189,7 +200,12 @@ export default function ProfilePage() {
             {/* Upload Button */}
             <label className="absolute bottom-0 right-0 bg-yellow-400 p-3 rounded-full cursor-pointer shadow-lg hover:bg-yellow-500 transition">
               <Camera className="w-5 h-5 text-purple-900" />
-              <input type="file" className="hidden" onChange={handleImageUpload} />
+              <input 
+                type="file" 
+                className="hidden" 
+                accept="image/*"
+                onChange={handleImageUpload} 
+              />
             </label>
 
             {uploadingImage && (
