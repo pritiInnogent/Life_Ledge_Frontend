@@ -1,0 +1,47 @@
+.analytics-container {
+  @apply space-y-6;
+}
+
+.analytics-grid {
+  @apply grid grid-cols-1 lg:grid-cols-2 gap-6;
+}
+
+.chart-card {
+  @apply bg-white p-6 rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-shadow duration-300;
+  min-height: 450px;
+}
+
+.chart-container {
+  @apply w-full;
+  padding-top: 8px;
+}
+
+.chart-container:has(div[style*="pie"]) {
+  margin-top: -10px;
+}
+
+.analytics-header {
+  @apply bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-2xl shadow-lg mb-6;
+}
+
+.analytics-title {
+  @apply text-2xl font-bold mb-2;
+}
+
+.analytics-subtitle {
+  @apply text-blue-100 text-sm;
+}
+
+.chart-card:hover {
+  transform: translateY(-2px);
+}
+
+@media (max-width: 768px) {
+  .analytics-grid {
+    @apply grid-cols-1;
+  }
+  
+  .chart-card {
+    @apply p-4;
+  }
+}
