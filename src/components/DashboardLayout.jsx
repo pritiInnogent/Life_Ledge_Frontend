@@ -48,7 +48,7 @@ export default function DashboardLayout() {
       {/* SIDEBAR */}
       <aside
         className={`
-          fixed md:static top-0 left-0 h-full 
+          fixed top-0 left-0 h-screen 
           bg-gradient-to-br from-purple-900 to-cyan-900 text-white 
           w-72 shadow-xl border-r border-purple-400/40
           transition-transform duration-300 z-50
@@ -121,7 +121,7 @@ export default function DashboardLayout() {
       </aside>
 
       {/* MAIN CONTENT */}
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto md:ml-72">
 
         {/* HEADER */}
         <header className="bg-white/80 backdrop-blur p-6 border-b shadow-sm flex items-center justify-between">
@@ -141,8 +141,16 @@ export default function DashboardLayout() {
               onClick={() => navigate('/app/profile')}
               className="flex items-center gap-3 bg-gradient-to-r from-purple-200 to-cyan-200 px-4 py-2 rounded-xl shadow hover:from-purple-300 hover:to-cyan-300 transition-all"
             >
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-cyan-600 rounded-full flex items-center justify-center text-white font-black">
-                {user?.name?.[0]?.toUpperCase() || 'U'}
+              <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-cyan-600 rounded-full flex items-center justify-center text-white font-black overflow-hidden">
+                {user?.profilePicUrl ? (
+                  <img 
+                    src={user.profilePicUrl} 
+                    alt="Profile" 
+                    className="w-full h-full object-cover rounded-full"
+                  />
+                ) : (
+                  <span>{user?.name?.[0]?.toUpperCase() || 'U'}</span>
+                )}
               </div>
               <div>
                 <div className="font-black text-gray-900">{user?.name}</div>

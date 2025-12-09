@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import { Calendar, Plus, DollarSign, Clock, AlertCircle, CheckCircle2, Repeat, CreditCard, Trash2 } from 'lucide-react'
-import ApiService from '../services/api'
+import apiService from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 
 const RecurringCard = ({ recurring, onDelete }) => {
-  const nextPayment = new Date(recurring.nextPayment)
+  if (!recurring) return null
+  
+  const nextPayment = recurring.nextPayment ? new Date(recurring.nextPayment) : new Date()
   const daysUntilNext = Math.ceil((nextPayment - new Date()) / (1000 * 60 * 60 * 24))
   const isOverdue = daysUntilNext < 0
   const isDueSoon = daysUntilNext <= 3 && daysUntilNext >= 0
@@ -29,8 +31,8 @@ const RecurringCard = ({ recurring, onDelete }) => {
             <CreditCard className="w-6 h-6 text-purple-600" />
           </div>
           <div>
-            <h3 className="font-black text-lg">{recurring.name}</h3>
-            <p className="text-sm text-gray-600">{recurring.category}</p>
+            <h3 className="font-black text-lg">{recurring.merchant || recurring.name || 'Unnamed Subscription'}</h3>
+            <p className="text-sm text-gray-600">{recurring.category || 'No Category'}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -48,13 +50,13 @@ const RecurringCard = ({ recurring, onDelete }) => {
         <div className="flex justify-between items-center">
           <span className="text-sm font-bold text-gray-600">Amount</span>
           <span className="text-lg font-black text-gray-900">
-            ₹{recurring.amount.toLocaleString()}
+            ₹{(recurring.amount || 0).toLocaleString()}
           </span>
         </div>
         
         <div className="flex justify-between items-center">
           <span className="text-sm font-bold text-gray-600">Frequency</span>
-          <span className="text-sm font-semibold capitalize">{recurring.frequency}</span>
+          <span className="text-sm font-semibold capitalize">{recurring.frequency || 'monthly'}</span>
         </div>
         
         <div className="flex justify-between items-center">
@@ -256,11 +258,17 @@ export default function RecurringPage() {
     try {
       setLoading(true)
       setError(null)
-      const data = await ApiService.getRecurringPayments()
-      setSubscriptions(data || [])
+      
+      if (user?.userId) {
+        const data = await apiService.getRecurringPatternsByUser(user.userId)
+        setSubscriptions(Array.isArray(data) ? data : [])
+      } else {
+        setSubscriptions([])
+      }
     } catch (err) {
       console.error('Error loading subscriptions:', err)
-      setError(err.message)
+      setError(err.message || 'Failed to load recurring payments')
+      setSubscriptions([])
     } finally {
       setLoading(false)
     }
@@ -271,9 +279,9 @@ export default function RecurringPage() {
       setError(null)
       
       if (subData.id) {
-        await ApiService.updateRecurringPayment(subData.id, subData)
+        await apiService.updateRecurringPattern(subData.id, subData)
       } else {
-        await ApiService.createRecurringPayment(subData)
+        await apiService.createRecurringPattern(subData)
       }
       
       await loadSubscriptions()
@@ -281,43 +289,55 @@ export default function RecurringPage() {
       setEditingSubscription(null)
     } catch (err) {
       console.error('Error saving subscription:', err)
-      setError(err.message)
+      setError(err.message || 'Failed to save subscription')
     }
   }
   
   const deleteSubscription = async (subId) => {
+    if (!confirm('Are you sure you want to delete this subscription?')) return
+    
     try {
-      await ApiService.deleteRecurringPayment(subId)
+      await apiService.deleteRecurringPattern(subId)
       await loadSubscriptions()
     } catch (err) {
       console.error('Error deleting subscription:', err)
-      setError(err.message)
+      setError(err.message || 'Failed to delete subscription')
     }
   }
   
-  const filteredSubscriptions = subscriptions.filter(sub => {
+  const filteredSubscriptions = (subscriptions || []).filter(sub => {
+    if (!sub) return false
     if (filter === 'all') return true
     if (filter === 'due-soon') {
-      const daysUntil = Math.ceil((new Date(sub.nextPayment) - new Date()) / (1000 * 60 * 60 * 24))
+      const nextPayment = sub.nextPayment ? new Date(sub.nextPayment) : null
+      if (!nextPayment) return false
+      const daysUntil = Math.ceil((nextPayment - new Date()) / (1000 * 60 * 60 * 24))
       return daysUntil <= 7 && daysUntil >= 0
     }
     if (filter === 'overdue') {
-      return new Date(sub.nextPayment) < new Date()
+      const nextPayment = sub.nextPayment ? new Date(sub.nextPayment) : null
+      return nextPayment && nextPayment < new Date()
     }
     return sub.frequency === filter
   })
   
-  const totalMonthly = subscriptions.reduce((sum, sub) => {
+  const totalMonthly = (subscriptions || []).reduce((sum, sub) => {
+    if (!sub || !sub.amount || !sub.frequency) return sum
     const multiplier = { weekly: 4.33, monthly: 1, quarterly: 0.33, yearly: 0.083 }
-    return sum + (sub.amount * (multiplier[sub.frequency] || 1))
+    return sum + (Number(sub.amount) * (multiplier[sub.frequency] || 1))
   }, 0)
   
-  const dueSoon = subscriptions.filter(s => {
-    const days = Math.ceil((new Date(s.nextPayment) - new Date()) / (1000 * 60 * 60 * 24))
+  const dueSoon = (subscriptions || []).filter(s => {
+    if (!s || !s.nextPayment) return false
+    const nextPayment = new Date(s.nextPayment)
+    const days = Math.ceil((nextPayment - new Date()) / (1000 * 60 * 60 * 24))
     return days <= 7 && days >= 0
   }).length
   
-  const overdue = subscriptions.filter(s => new Date(s.nextPayment) < new Date()).length
+  const overdue = (subscriptions || []).filter(s => {
+    if (!s || !s.nextPayment) return false
+    return new Date(s.nextPayment) < new Date()
+  }).length
   
   if (loading) {
     return (

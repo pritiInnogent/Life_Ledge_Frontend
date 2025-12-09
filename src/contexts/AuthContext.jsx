@@ -21,7 +21,10 @@ export function AuthProvider({ children }) {
         clearAuthData()
       } else {
         try {
-          setUser(JSON.parse(storedUser))
+          const userData = JSON.parse(storedUser)
+          setUser(userData)
+          // Load fresh profile data to get profile picture
+          loadUserProfile(userData)
         } catch (error) {
           clearAuthData()
         }
@@ -29,6 +32,24 @@ export function AuthProvider({ children }) {
     }
     setLoading(false)
   }, [])
+
+  const loadUserProfile = async (currentUser) => {
+    try {
+      const profile = await apiService.getUserProfile()
+      const updatedUser = {
+        ...currentUser,
+        name: profile.name || currentUser.name,
+        email: profile.email || currentUser.email,
+        profilePicUrl: profile.profilePicUrl,
+        phoneNumber: profile.phoneNumber
+      }
+      setUser(updatedUser)
+      localStorage.setItem('user', JSON.stringify(updatedUser))
+    } catch (error) {
+      console.log('Failed to load profile:', error)
+      // Keep existing user data if profile load fails
+    }
+  }
 
   const clearAuthData = () => {
     localStorage.removeItem('token')
@@ -52,6 +73,10 @@ export function AuthProvider({ children }) {
       
       localStorage.setItem('user', JSON.stringify(user))
       setUser(user)
+      
+      // Load complete profile data including profile picture
+      loadUserProfile(user)
+      
       return user
     } catch (error) {
       throw error

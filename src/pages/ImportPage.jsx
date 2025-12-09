@@ -2,6 +2,10 @@ import React, { useState, useEffect } from "react";
 import apiService from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
 import { Upload, Plus } from "lucide-react";
+import AccountCropDialog from "../components/AccountCropDialog";
+import SelectAccountDialog from "../components/SelectAccountDialog";
+
+
 
 export default function ImportPage() {
   const { user } = useAuth();
@@ -9,6 +13,12 @@ export default function ImportPage() {
   const [activeTab, setActiveTab] = useState("upload");
   const [selectedFile, setSelectedFile] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [rawImageFile, setRawImageFile] = useState(null);     // original image
+  const [showCropDialog, setShowCropDialog] = useState(false);
+  const [showAccountSelect, setShowAccountSelect] = useState(false);
+  const [fileInputKey, setFileInputKey] = useState(0); // Force re-render of file input
+
+
 
   const [notification, setNotification] = useState({
     message: "",
@@ -46,6 +56,16 @@ export default function ImportPage() {
     }
   };
 
+  // Reset upload form completely
+  const resetUploadForm = () => {
+    setSelectedFile(null);
+    setSelectedAccountId("");
+    setRawImageFile(null);
+    setShowCropDialog(false);
+    setShowAccountSelect(false);
+    setFileInputKey(prev => prev + 1); // Force file input to re-render
+  };
+
   // -------------------------------------------
   // NOTIFICATION
   // -------------------------------------------
@@ -56,48 +76,70 @@ export default function ImportPage() {
     }, 5000);
   };
 
+  const formatSuccessMessage = (result) => {
+  if (result.transactions) {
+    return `${result.transactions.length} transactions imported successfully`;
+  }
+
+  // existing PDF / CSV logic
+  const parts = [];
+  if (result.message) parts.push(result.message);
+  if (result.transactionsImported !== undefined)
+    parts.push(`${result.transactionsImported} transactions imported`);
+  if (result.added?.length)
+    parts.push(`${result.added.length} added`);
+  if (result.skipped?.length)
+    parts.push(`${result.skipped.length} skipped`);
+
+  return parts.join(" • ");
+};
+
   // -------------------------------------------
   // FILE PROCESSING
   // -------------------------------------------
   const handleFileUpload = async () => {
-    if (!selectedFile) {
-      showNotification("Please select a file", "error");
-      return;
-    }
+  if (!selectedFile) {
+    showNotification("Please select a file", "error");
+    return;
+  }
 
-    const fileType = selectedFile.type;
-    const fileName = selectedFile.name.toLowerCase();
+  const fileType = selectedFile.type;
+  const fileName = selectedFile.name.toLowerCase();
 
-    try {
-      setLoading(true);
-      let result;
+  try {
+    setLoading(true);
+    let result;
 
-      if (fileType === 'application/pdf' || fileName.endsWith('.pdf')) {
-        result = await apiService.processPdf(selectedFile, "auto-detected", "");
-      } else if (fileType === 'text/csv' || fileName.endsWith('.csv')) {
-        result = await apiService.processCsv(selectedFile, "auto-detected");
-      } else if (fileType.startsWith('image/')) {
-        showNotification("Image processing coming soon!", "info");
-        setSelectedFile(null);
-        return;
-      } else {
-        showNotification("Unsupported file type. Please upload PDF, CSV, or image files.", "error");
+    if (fileType.startsWith("image/")) {
+      if (!selectedAccountId) {
+        showNotification("Please select an account", "error");
         return;
       }
 
-      showNotification(
-        `File processed successfully! ${result.transactionsExtracted || result.saved || 0} transactions extracted.`,
-        "success"
-      );
+      result = await apiService.processImage(selectedFile, selectedAccountId);
 
-      setSelectedFile(null);
-    } catch (err) {
-      console.error(err);
-      showNotification(err.message || "File processing failed", "error");
-    } finally {
-      setLoading(false);
+    } else if (fileType === "application/pdf" || fileName.endsWith(".pdf")) {
+      result = await apiService.processPdf(selectedFile, "auto-detected", "");
+
+    } else if (fileType === "text/csv" || fileName.endsWith(".csv")) {
+      result = await apiService.processCsv(selectedFile, "auto-detected");
+
+    } else {
+      showNotification("Unsupported file type", "error");
+      return;
     }
-  };
+
+    showNotification(formatSuccessMessage(result), "success");
+    // Reset all form state to allow new uploads
+    resetUploadForm();
+
+  } catch (err) {
+    console.error(err);
+    showNotification(err.message || "File processing failed", "error");
+  } finally {
+    setLoading(false);
+  }
+};
 
   const processFileWithAccount = async () => {
     if (!accountNumber.trim()) {
@@ -121,12 +163,10 @@ export default function ImportPage() {
         throw new Error("Unsupported file type");
       }
 
-      showNotification(
-        `File processed successfully! ${result.transactionsExtracted || result.saved || 0} transactions extracted.`,
-        "success"
-      );
-
-      setSelectedFile(null);
+      showNotification(formatSuccessMessage(result), "success");
+      
+      // Reset all form state
+      resetUploadForm();
       setAccountNumber('');
       setPdfPassword('');
     } catch (err) {
@@ -238,13 +278,29 @@ export default function ImportPage() {
               <Upload className="w-12 h-12 text-purple-500 mx-auto mb-4" />
               <h3 className="text-lg font-bold mb-2">Choose File to Upload</h3>
               <p className="text-gray-600 mb-4">PDF, CSV, JPG, PNG files supported</p>
-              
+              {/* Masked preview after crop */}
               <input
-                type="file"
-                accept=".pdf,.csv,.jpg,.jpeg,.png"
-                onChange={(e) => setSelectedFile(e.target.files[0])}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-xl file:border-0 file:bg-gradient-to-r file:from-purple-50 file:to-cyan-50 file:text-purple-700 hover:file:from-purple-100 hover:file:to-cyan-100 file:font-bold file:transition-all"
-              />
+  key={fileInputKey}
+  type="file"
+  accept=".pdf,.csv,.jpg,.jpeg,.png"
+  onChange={(e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.type.startsWith("image/")) {
+      // ✅ image → open crop dialog
+      setRawImageFile(file);
+      setSelectedFile(null);      // wait for masked version
+      setShowCropDialog(true);    // 🔥 THIS opens the crop UI
+    } else {
+      // ✅ pdf / csv → same behavior as before
+      setRawImageFile(null);
+      setSelectedFile(file);
+    }
+  }}
+  className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-xl file:border-0 file:bg-gradient-to-r file:from-purple-50 file:to-cyan-50 file:text-purple-700 hover:file:from-purple-100 hover:file:to-cyan-100 file:font-bold file:transition-all"
+/>
+
             </div>
 
             {selectedFile && (
@@ -256,7 +312,11 @@ export default function ImportPage() {
 
             <button
               onClick={handleFileUpload}
-              disabled={loading || !selectedFile}
+              disabled={
+                loading ||
+                !selectedFile ||
+                (selectedFile.type.startsWith("image/") && !selectedAccountId)
+              }
               className="w-full bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-700 hover:to-cyan-700 text-white px-8 py-4 rounded-xl font-bold shadow-lg shadow-purple-600/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? "Processing…" : "Process File"}
@@ -354,7 +414,35 @@ export default function ImportPage() {
         )}
       </div>
 
+{/* Crop dialog overlay (images only) */}
+{showCropDialog && rawImageFile && (
+  <AccountCropDialog
+    imageFile={rawImageFile}
+      onConfirm={(croppedFile) => {
+  setSelectedFile(croppedFile);
+  setShowCropDialog(false);
+  setShowAccountSelect(true); // ✅ NEW
+}}
+    onCancel={() => {
+      resetUploadForm();
+    }}
+  />
+)}
+
+{showAccountSelect && (
+  <SelectAccountDialog
+    onSelect={(accountId) => {
+      setSelectedAccountId(accountId);
+      setShowAccountSelect(false);
+    }}
+    onCancel={() => {
+      resetUploadForm();
+    }}
+  />
+)}
+
 
     </div>
   );
 }
+  

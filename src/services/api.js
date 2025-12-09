@@ -66,52 +66,65 @@ class ApiService {
 
   // USER
 
-  getUserProfile() {
-    return this.api.get("/user/profile");
+  async getUserProfile() {
+    try {
+      return await this.api.get("/user/profile");
+    } catch (error) {
+      console.log("Backend unavailable → using mock profile");
+      // Return mock profile data
+      const mockProfile = {
+        name: "John Doe",
+        email: "john.doe@example.com",
+        phoneNumber: "+1234567890",
+        profilePicUrl: "",
+        createdAt: new Date().toISOString()
+      };
+      return mockProfile;
+    }
   }
 
   updateUserProfile(userData) {
     return this.api.put("/user/update", userData);
   }
 
-  uploadProfilePicture(file) {
-    const formData = new FormData();
-    formData.append("file", file);
-    return this.api.post("/user/profile-pic", formData, {
-      headers: { "Content-Type": "multipart/form-data" }
-    });
+  async uploadProfilePicture(file) {
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      return await this.api.post("/user/profile-pic", formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+    } catch (error) {
+      console.log("Backend unavailable → using mock upload");
+      // Mock successful upload
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return {
+        url: URL.createObjectURL(file),
+        message: "Profile picture uploaded successfully (mock)"
+      };
+    }
   }
 
   // BANK ACCOUNTS
   async createAccount(accountData) {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    const newAccount = {
-      id: Date.now(),
-      ...accountData,
-      last4Digits: accountData.accountNumber.slice(-4),
-      createdAt: new Date().toISOString()
-    };
-    
-    // Get existing accounts from localStorage
-    const existingAccounts = JSON.parse(localStorage.getItem('bankAccounts') || '[]');
-    
-    // Add new account
-    const updatedAccounts = [...existingAccounts, newAccount];
-    
-    // Save to localStorage
-    localStorage.setItem('bankAccounts', JSON.stringify(updatedAccounts));
-    
-    return newAccount;
+    console.log('Creating account with data:', accountData);
+    return await this.api.post("/accounts", accountData);
   }
 
   async getAccounts() {
-    await new Promise(resolve => setTimeout(resolve, 200));
-    
-    // Get accounts from localStorage
-    const accounts = JSON.parse(localStorage.getItem('bankAccounts') || '[]');
-    return accounts;
+    try {
+      return await this.api.get("/accounts");
+    } catch (error) {
+      console.log("Backend unavailable → using mock accounts");
+      // Return mock accounts for fallback
+      const mockAccounts = [
+        { id: 1, bankName: "HDFC Bank", last4Digits: "1234" },
+        { id: 2, bankName: "ICICI Bank", last4Digits: "5678" }
+      ];
+      return mockAccounts;
+    }
   }
+
 
   async deleteAccount(accountId) {
     await new Promise(resolve => setTimeout(resolve, 300));
@@ -128,19 +141,43 @@ class ApiService {
     return { success: true, message: 'Account deleted successfully' };
   }
   // TRANSACTIONS
-  async getTransactions() {
-    try {
-      return await this.api.get("/transactions");
-    } catch (error) {
-      // If backend is not available, return mock data from localStorage
-      console.log("Backend not available, using mock transactions");
-      
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      const transactions = JSON.parse(localStorage.getItem('transactions') || '[]');
-      return transactions;
+  // TRANSACTIONS
+async getTransactions(bankAccountId = null) {
+  try {
+    const params = {};
+    if (bankAccountId) params.bankAccountId = bankAccountId;
+
+    return await this.api.get("/transactions", { params });
+  } catch (error) {
+    console.log("Backend unavailable → using mock transactions");
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    // Check if we have stored transactions, otherwise create mock data
+    let transactions = JSON.parse(localStorage.getItem("transactions") || "[]");
+    
+    if (transactions.length === 0) {
+      // Create mock transactions with categories
+      const mockTransactions = [
+        { id: 1, merchant: "Swiggy", amount: 450, categoryName: "Food & Dining", date: "2024-01-15", typeTransaction: "debit" },
+        { id: 2, merchant: "Uber", amount: 280, categoryName: "Transportation", date: "2024-01-14", typeTransaction: "debit" },
+        { id: 3, merchant: "Amazon", amount: 1200, categoryName: "Shopping", date: "2024-01-13", typeTransaction: "debit" },
+        { id: 4, merchant: "Netflix", amount: 199, categoryName: "Entertainment", date: "2024-01-12", typeTransaction: "debit" },
+        { id: 5, merchant: "BSES", amount: 850, categoryName: "Utilities", date: "2024-01-11", typeTransaction: "debit" },
+        { id: 6, merchant: "Apollo Pharmacy", amount: 320, categoryName: "Healthcare", date: "2024-01-10", typeTransaction: "debit" },
+        { id: 7, merchant: "Zomato", amount: 380, categoryName: "Food & Dining", date: "2024-01-09", typeTransaction: "debit" },
+        { id: 8, merchant: "Ola", amount: 150, categoryName: "Transportation", date: "2024-01-08", typeTransaction: "debit" },
+        { id: 9, merchant: "Flipkart", amount: 890, categoryName: "Shopping", date: "2024-01-07", typeTransaction: "debit" },
+        { id: 10, merchant: "Spotify", amount: 119, categoryName: "Entertainment", date: "2024-01-06", typeTransaction: "debit" }
+      ];
+      localStorage.setItem("transactions", JSON.stringify(mockTransactions));
+      transactions = mockTransactions;
     }
+    
+    return transactions;
   }
+}
+
+
   getTotalSpent() {
     return this.api.get("/transactions/total-spent");
   }
@@ -164,6 +201,14 @@ class ApiService {
 
   addTransaction(data) {
     return this.api.post("/transactions", data);
+  }
+
+  async deleteTransaction(transactionId) {
+    return await this.api.delete(`/transactions/${transactionId}`);
+  }
+
+  async deleteAllTransactions() {
+    return await this.api.delete("/transactions/delete-all");
   }
 
   // PDF IMPORT
@@ -215,18 +260,43 @@ class ApiService {
 
   // RECURRING PAYMENTS
   async getRecurringPayments() {
-    return await this.api.get('/recurring');
+    try {
+      // Since there's no GET /api/recurring endpoint, we'll need to get by account
+      // First get user accounts, then get patterns for each account
+      const accounts = await this.getAccounts();
+      if (accounts.length === 0) return [];
+      
+      // Get patterns for the first account (or all accounts)
+      const patterns = await this.getRecurringPatternsByAccount(accounts[0].id);
+      return patterns;
+    } catch (error) {
+      console.log("Backend unavailable → using mock recurring patterns");
+      return [];
+    }
   }
 
-  async createRecurringPayment(recurringData) {
+  async getRecurringPatternsByAccount(bankAccountId) {
+    try {
+      return await this.api.get(`/recurring/account/${bankAccountId}`);
+    } catch (error) {
+      console.log("Backend unavailable → using mock patterns for account");
+      return [];
+    }
+  }
+
+  async getRecurringPatternsByUser(userId) {
+    return await this.api.get(`/recurring/user/${userId}`);
+  }
+
+  async createRecurringPattern(recurringData) {
     return await this.api.post("/recurring", recurringData);
   }
 
-  async updateRecurringPayment(recurringId, recurringData) {
+  async updateRecurringPattern(recurringId, recurringData) {
     return await this.api.put(`/recurring/${recurringId}`, recurringData);
   }
 
-  async deleteRecurringPayment(recurringId) {
+  async deleteRecurringPattern(recurringId) {
     return await this.api.delete(`/recurring/${recurringId}`);
   }
 
@@ -252,15 +322,31 @@ class ApiService {
 
   // AI INSIGHTS
   async getInsightsStatus() {
-    return await this.api.get("/ai/insights/status");
+    try {
+      return await this.api.get("/ai/insights/status");
+    } catch (error) {
+      console.log("Backend unavailable → using mock insights status");
+      return { status: "completed", lastAnalysis: new Date().toISOString() };
+    }
   }
 
   async getLatestInsights() {
-    return await this.api.get("/ai/latest");
+    try {
+      return await this.api.get("/ai/latest");
+    } catch (error) {
+      console.log("Backend unavailable → using mock latest insights");
+      throw new Error("No insights available");
+    }
   }
 
   async analyzeFinancialData() {
-    return await this.api.post("/ai/analyze");
+    try {
+      return await this.api.post("/ai/analyze");
+    } catch (error) {
+      console.log("Backend unavailable → using mock analysis");
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return { message: "Analysis completed", status: "success" };
+    }
   }
 
   async getCategoryBreakdown() {
@@ -281,11 +367,34 @@ class ApiService {
 
   // CATEGORIES
   async getCategories() {
-    return await this.api.get("/categories");
+    try {
+      return await this.api.get("/categories");
+    } catch (error) {
+      console.log("Backend unavailable → using mock categories");
+      // Return mock categories data
+      const mockCategories = [
+        { id: 1, name: "Food & Dining", description: "Restaurants, groceries, food delivery" },
+        { id: 2, name: "Transportation", description: "Fuel, public transport, ride sharing" },
+        { id: 3, name: "Shopping", description: "Clothing, electronics, general shopping" },
+        { id: 4, name: "Entertainment", description: "Movies, games, subscriptions" },
+        { id: 5, name: "Utilities", description: "Electricity, water, internet, phone" },
+        { id: 6, name: "Healthcare", description: "Medical expenses, pharmacy, insurance" },
+        { id: 7, name: "Travel", description: "Hotels, flights, vacation expenses" },
+        { id: 8, name: "Education", description: "Books, courses, tuition fees" }
+      ];
+      return mockCategories;
+    }
   }
 
   async createCategory(categoryData) {
-    return await this.api.post("/categories", categoryData);
+    try {
+      return await this.api.post("/categories", categoryData);
+    } catch (error) {
+      console.log("Backend unavailable → using mock create");
+      // Simulate successful creation
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return { id: Date.now(), ...categoryData, message: "Category created successfully" };
+    }
   }
 
   async getCategoryById(categoryId) {
@@ -293,13 +402,54 @@ class ApiService {
   }
 
   async updateCategory(categoryId, categoryData) {
-    return await this.api.put(`/categories/${categoryId}`, categoryData);
+    console.log(`Calling PUT /api/categories/${categoryId}`, categoryData);
+    return await this.api.put(`/categories/${categoryId}`, {
+      name: categoryData.name,
+      icon: categoryData.icon,
+      type: categoryData.type
+    });
   }
 
   async deleteCategory(categoryId) {
+    console.log(`Calling DELETE /api/categories/${categoryId}`);
     return await this.api.delete(`/categories/${categoryId}`);
   }
-  
+
+  async getTransactionsByCategory(categoryId) {
+    return await this.api.get(`/categories/by-category/${categoryId}`);
+  }
+
+  async getBankAccountsLast4() {
+  return await this.api.get("/accounts/last4");
 }
 
+async getAnalyticsDashboard(accountId) {
+  try {
+    return await this.api.get(`/analytics/dashboard`, {
+      params: { accountId }
+    });
+  } catch (error) {
+    console.log("Backend unavailable → using mock analytics");
+    return {
+      totalSpent: 45000,
+      totalIncome: 75000,
+      transactionCount: 156,
+      categories: []
+    };
+  }
+}
+// IMAGE OCR (masked screenshot upload)
+// IMAGE OCR (cropped screenshot upload)
+async processImage(file, bankAccountId) {
+  const formData = new FormData();
+  formData.append("image", file);
+  formData.append("bankAccountId", bankAccountId);
+
+  return await this.api.post("/ocr/upload", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+}
+
+
+};
 export default new ApiService();

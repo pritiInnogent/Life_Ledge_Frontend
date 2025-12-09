@@ -68,7 +68,7 @@ export default function ProfilePage() {
   const handleSave = async () => {
     setLoadingSave(true);
     try {
-      await apiService.put("/user/update", {
+      await apiService.updateUserProfile({
         name: profile.name,
         phoneNumber: profile.phoneNumber,
       });
@@ -93,12 +93,7 @@ export default function ProfilePage() {
     try {
       setUploadingImage(true);
 
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const response = await apiService.post("/user/profile-pic", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const response = await apiService.uploadProfilePicture(file);
 
       setProfile((prev) => ({ ...prev, profilePicUrl: response.url }));
       setSuccess("Profile picture updated!");
