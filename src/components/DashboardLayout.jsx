@@ -11,9 +11,8 @@ import ThemeToggle from './ThemeToggle'
 
 // NAVIGATION LINK DATA
 const navItems = [
-  { path: '/app/dashboard', label: 'Dashboard', icon: Home },
   { path: '/app/transactions', label: 'Transactions', icon: Receipt },
-  { path: '/app/analytics', label: 'Analytics', icon: BarChart3 },
+  { path: '/app/analytics', label: 'Dashboard', icon: BarChart3 },
   { path: '/app/categories', label: 'Categories', icon: PieChart },
   { path: '/app/recurring', label: 'Recurring', icon: Calendar },
   { path: '/app/goals', label: 'Goals', icon: Target },
@@ -124,19 +123,26 @@ export default function DashboardLayout() {
       <main className="flex-1 overflow-auto ml-0 md:ml-72">
 
         {/* HEADER */}
-        <header className={`backdrop-blur p-6 border-b shadow-sm flex items-center justify-between transition-colors ${
-          darkMode ? 'bg-gray-800/80 border-gray-700' : 'bg-white/80 border-gray-200'
+        <header className={`backdrop-blur-md p-8 border-b shadow-lg flex items-center justify-between transition-all duration-300 ${
+          darkMode ? 'bg-gray-800/90 border-gray-700' : 'bg-white/90 border-gray-200'
         }`}>
 
-          <div>
-            <h1 className={`text-3xl font-black transition-colors ${
-              darkMode ? 'text-white' : 'text-gray-900'
-            }`}>
-              {navItems.find(n => n.path === location.pathname)?.label || 'Dashboard'}
-            </h1>
-            <p className={`text-sm transition-colors ${
-              darkMode ? 'text-gray-400' : 'text-gray-600'
-            }`}>{new Date().toLocaleDateString()}</p>
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-cyan-600 rounded-2xl flex items-center justify-center shadow-lg">
+              {(() => {
+                const currentItem = navItems.find(n => n.path === location.pathname)
+                const IconComponent = currentItem?.icon || Upload
+                return <IconComponent className="w-6 h-6 text-white" />
+              })()}
+            </div>
+            <div>
+              <h1 className={`text-4xl font-black bg-gradient-to-r from-purple-600 to-cyan-600 bg-clip-text text-transparent`}>
+                {navItems.find(n => n.path === location.pathname)?.label || 'Import'}
+              </h1>
+              <p className={`text-sm font-medium transition-colors ${
+                darkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}>{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+            </div>
           </div>
 
           {/* Right-side icons */}

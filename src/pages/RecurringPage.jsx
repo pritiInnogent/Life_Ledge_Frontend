@@ -276,37 +276,37 @@ const CalendarView = ({ subscriptions }) => {
   const monthYear = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
   
   return (
-    <div className="bg-white rounded-2xl p-6 shadow">
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-xl font-black text-gray-900">Payment Calendar</h3>
+    <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-8 shadow-xl border border-white/20">
+      <div className="flex items-center justify-between mb-8">
+        <h3 className="text-3xl font-black bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">Payment Calendar</h3>
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigateMonth(-1)}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-3 hover:bg-purple-100 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
           >
-            <ChevronLeft className="w-5 h-5" />
+            <ChevronLeft className="w-5 h-5 text-purple-600" />
           </button>
-          <span className="font-bold text-lg">{monthYear}</span>
+          <span className="font-black text-xl text-gray-800 px-4">{monthYear}</span>
           <button
             onClick={() => navigateMonth(1)}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-3 hover:bg-purple-100 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
           >
-            <ChevronRight className="w-5 h-5" />
+            <ChevronRight className="w-5 h-5 text-purple-600" />
           </button>
         </div>
       </div>
       
-      <div className="grid grid-cols-7 gap-1 mb-2">
+      <div className="grid grid-cols-7 gap-2 mb-4">
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-          <div key={day} className="p-2 text-center text-sm font-bold text-gray-600">
+          <div key={day} className="p-3 text-center text-sm font-black text-gray-700 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg">
             {day}
           </div>
         ))}
       </div>
       
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-2">
         {Array.from({ length: firstDay }, (_, i) => (
-          <div key={`empty-${i}`} className="p-2 h-20"></div>
+          <div key={`empty-${i}`} className="p-3 h-24"></div>
         ))}
         
         {Array.from({ length: daysInMonth }, (_, i) => {
@@ -357,11 +357,23 @@ export default function RecurringPage() {
   const [showForm, setShowForm] = useState(false)
   const [editingSubscription, setEditingSubscription] = useState(null)
   const [filter, setFilter] = useState('all')
+  const [accounts, setAccounts] = useState([])
+  const [accountFilter, setAccountFilter] = useState('all')
 
   
   useEffect(() => {
     loadSubscriptions()
+    loadAccounts()
   }, [])
+
+  const loadAccounts = async () => {
+    try {
+      const data = await ApiService.getAccounts()
+      setAccounts(Array.isArray(data) ? data : [])
+    } catch (err) {
+      console.error('Error fetching accounts:', err)
+    }
+  }
   
   const loadSubscriptions = async () => {
     try {
@@ -480,17 +492,32 @@ export default function RecurringPage() {
   }
   
   return (
-    <div className="space-y-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-6 space-y-8">
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <div className="bg-red-50/80 backdrop-blur-sm border border-red-200 rounded-2xl p-4 shadow-lg animate-slide-up">
           <p className="text-red-800 font-semibold">Error: {error}</p>
         </div>
       )}
       
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-between mb-8 animate-fade-in">
+        <div>
+          <label className="block text-sm font-medium text-gray-600 mb-2">Bank Account</label>
+          <select
+            value={accountFilter}
+            onChange={(e) => setAccountFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white shadow-sm"
+          >
+            <option value="all">All Accounts</option>
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.bankName} ••••{account.last4Digits}
+              </option>
+            ))}
+          </select>
+        </div>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 bg-purple-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-purple-700 transition-colors"
+          className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
         >
           <Plus className="w-5 h-5" />
           Add Subscription
@@ -498,39 +525,49 @@ export default function RecurringPage() {
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white rounded-2xl p-6 shadow">
-          <div className="flex items-center gap-3 mb-2">
-            <Repeat className="w-6 h-6 text-purple-600" />
-            <span className="font-bold text-gray-600">Total Subscriptions</span>
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-300 animate-slide-up">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-3 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg">
+              <Repeat className="w-6 h-6 text-white" />
+            </div>
+            <span className="font-bold text-gray-700">Total Subscriptions</span>
           </div>
-          <div className="text-2xl font-black">{subscriptions.length}</div>
+          <div className="text-3xl font-black text-gray-900">{subscriptions.length}</div>
         </div>
-        <div className="bg-white rounded-2xl p-6 shadow">
-          <div className="flex items-center gap-3 mb-2">
-            <DollarSign className="w-6 h-6 text-green-600" />
-            <span className="font-bold text-gray-600">Monthly Cost</span>
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-300 animate-slide-up" style={{animationDelay: '0.1s'}}>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-3 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 shadow-lg">
+              <DollarSign className="w-6 h-6 text-white" />
+            </div>
+            <span className="font-bold text-gray-700">Monthly Cost</span>
           </div>
-          <div className="text-2xl font-black text-green-600">₹{totalMonthly.toLocaleString()}</div>
+          <div className="text-3xl font-black bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">₹{totalMonthly.toLocaleString()}</div>
         </div>
-        <div className="bg-white rounded-2xl p-6 shadow">
-          <div className="flex items-center gap-3 mb-2">
-            <Clock className="w-6 h-6 text-yellow-600" />
-            <span className="font-bold text-gray-600">Due Soon</span>
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-300 animate-slide-up" style={{animationDelay: '0.2s'}}>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-3 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-600 shadow-lg">
+              <Clock className="w-6 h-6 text-white" />
+            </div>
+            <span className="font-bold text-gray-700">Due Soon</span>
           </div>
-          <div className="text-2xl font-black text-yellow-600">{dueSoon}</div>
+          <div className="text-3xl font-black bg-gradient-to-r from-yellow-600 to-orange-600 bg-clip-text text-transparent">{dueSoon}</div>
         </div>
-        <div className="bg-white rounded-2xl p-6 shadow">
-          <div className="flex items-center gap-3 mb-2">
-            <AlertCircle className="w-6 h-6 text-red-600" />
-            <span className="font-bold text-gray-600">Overdue</span>
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-300 animate-slide-up" style={{animationDelay: '0.3s'}}>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-3 rounded-xl bg-gradient-to-br from-red-500 to-pink-600 shadow-lg">
+              <AlertCircle className="w-6 h-6 text-white" />
+            </div>
+            <span className="font-bold text-gray-700">Overdue</span>
           </div>
-          <div className="text-2xl font-black text-red-600">{overdue}</div>
+          <div className="text-3xl font-black bg-gradient-to-r from-red-600 to-pink-600 bg-clip-text text-transparent">{overdue}</div>
         </div>
       </div>
       
 
       
-      <CalendarView subscriptions={subscriptions} />
+      <div className="animate-slide-up" style={{animationDelay: '0.4s'}}>
+        <CalendarView subscriptions={subscriptions} />
+      </div>
       
       {showForm && (
         <RecurringForm

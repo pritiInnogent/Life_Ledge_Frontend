@@ -3,7 +3,6 @@ import {
   Brain,
   DollarSign,
   Repeat,
-  Eye,
   Target,
   AlertTriangle,
   AlertCircle,
@@ -12,6 +11,7 @@ import {
 } from "lucide-react";
 import apiService from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
+import '../styles/animations.css';
 
 const InsightsPage = () => {
   const { user } = useAuth();
@@ -21,13 +21,25 @@ const InsightsPage = () => {
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState(null);
   const [activeSection, setActiveSection] = useState(null);
+  const [accounts, setAccounts] = useState([]);
+  const [accountFilter, setAccountFilter] = useState('all');
 
   useEffect(() => {
     if (user?.userId) {
       // Only fetch existing insights on load, don't auto-analyze
       fetchExistingInsights();
+      loadAccounts();
     }
   }, [user]);
+
+  const loadAccounts = async () => {
+    try {
+      const data = await apiService.getAccounts();
+      setAccounts(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error fetching accounts:', err);
+    }
+  };
 
   // Set default active section on data load
   useEffect(() => {
@@ -178,13 +190,28 @@ const InsightsPage = () => {
     );
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-6 space-y-6">
       {/* Header */}
-      <div className="flex justify-end items-center mb-6">
+      <div className="flex justify-between items-center mb-8 animate-fade-in">
+        <div>
+          <label className="block text-sm font-medium text-gray-600 mb-2">Filter by Bank Account</label>
+          <select
+            value={accountFilter}
+            onChange={(e) => setAccountFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+          >
+            <option value="all">All Accounts</option>
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.bankName} ••••{account.last4Digits}
+              </option>
+            ))}
+          </select>
+        </div>
         <button
           onClick={analyzeInsights}
           disabled={analyzing}
-          className="bg-purple-600 text-white px-6 py-2 rounded-xl shadow hover:bg-purple-700 transition disabled:opacity-50 flex items-center gap-2"
+          className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 disabled:opacity-50 flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
         >
           {analyzing ? (
             <>
@@ -209,41 +236,51 @@ const InsightsPage = () => {
 
       {/* Default Layout */}
       {!data && !analyzing && !loading && (
-        <div className="bg-white rounded-2xl p-12 shadow-lg text-center">
-          <Brain className="w-16 h-16 text-purple-300 mx-auto mb-4" />
-          <h3 className="text-xl font-bold mb-2">AI Financial Insights</h3>
-          <p className="text-gray-600 mb-6">Get personalized insights about your spending patterns, anomalies, and smart recommendations</p>
-          <div className="bg-gray-50 rounded-lg p-4 mb-6">
-            <p className="text-sm text-gray-700">Our AI will analyze your transactions to provide:</p>
-            <ul className="text-sm text-gray-600 mt-2 space-y-1">
-              <li>• Spending breakdown by category</li>
-              <li>• Recurring payment patterns</li>
-              <li>• Unusual transaction detection</li>
-              <li>• Personalized financial nudges</li>
-            </ul>
+        <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-12 shadow-xl border border-white/20 text-center animate-slide-up">
+          <div className="w-20 h-20 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <Brain className="w-10 h-10 text-white" />
+          </div>
+          <h3 className="text-3xl font-black bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent mb-4">AI Financial Insights</h3>
+          <p className="text-gray-600 mb-8 text-lg">Get personalized insights about your spending patterns, anomalies, and smart recommendations</p>
+          <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-6 border border-purple-100">
+            <p className="text-sm font-semibold text-gray-700 mb-4">Our AI will analyze your transactions to provide:</p>
+            <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                Spending breakdown by category
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                Recurring payment patterns
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                Unusual transaction detection
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                Personalized financial nudges
+              </div>
+            </div>
           </div>
         </div>
       )}
 
       {/* Professional Analyzing State */}
       {analyzing && (
-        <div className="bg-white rounded-2xl p-12 shadow-lg text-center">
-          <div className="relative mb-6">
-            <div className="w-20 h-20 mx-auto">
-              <div className="absolute inset-0 border-4 border-purple-200 rounded-full"></div>
-              <div className="absolute inset-0 border-4 border-purple-600 rounded-full border-t-transparent animate-spin"></div>
-              <Brain className="w-8 h-8 text-purple-600 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
-            </div>
+        <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-12 shadow-xl border border-white/20 text-center animate-slide-up">
+          <div className="w-20 h-20 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <Brain className="w-10 h-10 text-white" />
           </div>
-          <h3 className="text-xl font-bold mb-2 text-purple-600">Analyzing Your Financial Data</h3>
-          <p className="text-gray-600 mb-4">Our AI is processing your transactions and generating personalized insights...</p>
-          <div className="bg-purple-50 rounded-lg p-4">
-            <div className="flex items-center justify-center space-x-2">
-              <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"></div>
-              <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-              <div className="w-2 h-2 bg-purple-400 rounded-full" style={{animationDelay: '0.2s'}}></div>
+          <h3 className="text-3xl font-black bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent mb-4">Analyzing Your Financial Data</h3>
+          <p className="text-gray-600 mb-6 text-lg">Our AI is processing your transactions and generating personalized insights...</p>
+          <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-6 border border-purple-100">
+            <div className="flex items-center justify-center space-x-3 mb-4">
+              <div className="w-3 h-3 bg-purple-500 rounded-full animate-bounce"></div>
+              <div className="w-3 h-3 bg-indigo-500 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+              <div className="w-3 h-3 bg-purple-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
             </div>
-            <p className="text-sm text-purple-700 mt-2">This may take a few moments...</p>
+            <p className="text-sm font-semibold text-purple-700">This may take a few moments...</p>
           </div>
         </div>
       )}
@@ -252,8 +289,8 @@ const InsightsPage = () => {
       {data && (
         <>
           {/* Professional Tab Navigation */}
-          <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
-            <div className="bg-gradient-to-r from-slate-50 to-gray-50 px-1 py-1">
+          <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl border border-white/20 overflow-hidden animate-slide-up">
+            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 px-1 py-1">
               <div className="flex gap-1">
                 {[
                   { id: 'overall', label: 'Overview', icon: Brain },
@@ -267,8 +304,8 @@ const InsightsPage = () => {
                     onClick={() => setActiveSection(tab.id)}
                     className={`flex-1 px-4 py-3 text-sm font-semibold rounded-2xl transition-all duration-200 ${
                       activeSection === tab.id
-                        ? 'bg-white text-gray-700 shadow-lg scale-105'
-                        : 'text-gray-600 hover:text-gray-800 hover:bg-white/50'
+                        ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg scale-105'
+                        : 'text-gray-600 hover:text-gray-800 hover:bg-white/70'
                     }`}
                   >
                     <div className="flex items-center justify-center gap-2">
@@ -284,17 +321,17 @@ const InsightsPage = () => {
             <div className="p-8">
               {activeSection === 'overall' && (
                 <div className="space-y-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl shadow-lg">
-                      <Brain className="w-6 h-6 text-white" />
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="p-4 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-2xl shadow-lg">
+                      <Brain className="w-8 h-8 text-white" />
                     </div>
                     <div>
-                      <h3 className="text-3xl font-bold text-gray-900">Financial Health Overview</h3>
-                      <p className="text-gray-600 mt-1">AI-powered analysis of your financial status</p>
+                      <h3 className="text-3xl font-black bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">Financial Health Overview</h3>
+                      <p className="text-gray-600 mt-1 font-medium">AI-powered analysis of your financial status</p>
                     </div>
                   </div>
                   
-                  <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-2xl p-8 border border-blue-100 shadow-sm">
+                  <div className="bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50 rounded-2xl p-8 border border-purple-100 shadow-lg">
                     <div className="prose prose-lg max-w-none">
                       <p className="text-gray-800 leading-relaxed text-lg font-medium">
                         {data.overall_health.summary}
@@ -306,17 +343,17 @@ const InsightsPage = () => {
 
               {activeSection === 'categories' && (
                 <div className="space-y-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-gradient-to-br from-emerald-500 to-green-600 rounded-2xl shadow-lg">
-                      <DollarSign className="w-6 h-6 text-white" />
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="p-4 bg-gradient-to-br from-emerald-500 to-green-600 rounded-2xl shadow-lg">
+                      <DollarSign className="w-8 h-8 text-white" />
                     </div>
                     <div>
-                      <h3 className="text-3xl font-bold text-gray-900">Spending Analysis</h3>
-                      <p className="text-gray-600 mt-1">Breakdown of your expenses by category</p>
+                      <h3 className="text-3xl font-black bg-gradient-to-r from-emerald-600 to-green-600 bg-clip-text text-transparent">Spending Analysis</h3>
+                      <p className="text-gray-600 mt-1 font-medium">Breakdown of your expenses by category</p>
                     </div>
                   </div>
                   
-                  <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                  <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 overflow-hidden shadow-lg">
                     <div className="divide-y divide-gray-100">
                       {data.spending_breakdown.map((category, index) => (
                         <div key={index} className="p-4 hover:bg-gray-50 transition-colors">

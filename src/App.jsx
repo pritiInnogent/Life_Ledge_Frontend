@@ -18,7 +18,7 @@ import RecurringPage from './pages/RecurringPage'
 import GoalsPage from './pages/GoalsPage'
 import InsightsPage from './pages/InsightsPage'
 import ImportPage from './pages/ImportPage'
-import SettingsPage from './pages/SettingsPage'
+
 import ProfilePage from './pages/ProfilePage'
 
 import { useAuth } from './contexts/AuthContext'
@@ -57,7 +57,8 @@ export default function App() {
             </ProtectedRoute>
           }
         >
-          <Route path="dashboard" element={<DashboardPage />} />
+          <Route index element={<Navigate to="import" replace />} />
+          <Route path="dashboard" element={<AnalyticsPage />} />
           <Route path="transactions" element={<TransactionsPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
           <Route path="categories" element={<CategoriesPage />} />
@@ -65,7 +66,7 @@ export default function App() {
           <Route path="goals" element={<GoalsPage />} />
           <Route path="insights" element={<InsightsPage />} />
           <Route path="import" element={<ImportPage />} />
-          <Route path="settings" element={<SettingsPage />} />
+
           <Route path="profile" element={<ProfilePage />} />
         </Route>
 

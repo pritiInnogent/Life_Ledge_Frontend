@@ -89,7 +89,7 @@ class ApiService {
   uploadProfilePicture(file) {
     const formData = new FormData();
     formData.append("file", file);
-    return this.api.post("/user/profile-pic", formData, {
+    return this.api.post("/api/user/profile-pic", formData, {
       headers: { "Content-Type": "multipart/form-data" }
     });
   }

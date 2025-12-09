@@ -1,3 +1,4 @@
+import React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowUpCircle, ArrowDownCircle } from "lucide-react";
 import apiService from "../services/api";
@@ -208,35 +209,52 @@ export default function TransactionsPage() {
               const isDebit = type === "DEBIT";
 
               return (
-                <div key={txn.id} className="p-4 hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                <div key={txn.id} className="p-6 hover:bg-gray-50 transition-colors">
+                  <div className="grid grid-cols-5 gap-4 items-center">
+                    {/* Date */}
+                    <div className="text-sm">
+                      <div className="font-medium text-gray-900">{new Date(txn.date).toLocaleDateString()}</div>
+                      <div className="text-xs text-gray-500">{new Date(txn.date).toLocaleDateString('en-US', { weekday: 'short' })}</div>
+                    </div>
+                    
+                    {/* Merchant */}
+                    <div>
+                      <div className="font-medium text-gray-900">{txn.merchant}</div>
+                      <div className="text-sm text-gray-500">{txn.notes || 'No description'}</div>
+                    </div>
+                    
+                    {/* Mode */}
+                    <div className="text-sm">
+                      <div className="font-medium text-gray-700">{txn.mode || 'Online'}</div>
+                      <div className="text-xs text-gray-500">Payment Mode</div>
+                    </div>
+                    
+                    {/* Type */}
+                    <div className="flex items-center gap-2">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                         isDebit ? 'bg-red-100' : 'bg-green-100'
                       }`}>
                         {isDebit ? (
-                          <ArrowDownCircle className="w-5 h-5 text-red-600" />
+                          <ArrowDownCircle className="w-4 h-4 text-red-600" />
                         ) : (
-                          <ArrowUpCircle className="w-5 h-5 text-green-600" />
+                          <ArrowUpCircle className="w-4 h-4 text-green-600" />
                         )}
                       </div>
-                      
-                      <div>
-                        <div className="font-medium text-gray-900">{txn.merchant}</div>
-                        <div className="text-sm text-gray-500">{txn.notes}</div>
-                        <div className="text-xs text-gray-400">{txn.date}</div>
+                      <div className={`text-sm font-medium ${
+                        isDebit ? 'text-red-600' : 'text-green-600'
+                      }`}>
+                        {isDebit ? 'Debit' : 'Credit'}
                       </div>
                     </div>
                     
+                    {/* Amount */}
                     <div className="text-right">
                       <div className={`text-lg font-bold ${
                         isDebit ? 'text-red-600' : 'text-green-600'
                       }`}>
                         {isDebit ? "-" : "+"}₹{fmtAmount(Math.abs(amt))}
                       </div>
-                      <div className="text-xs text-gray-400">
-                        {isDebit ? 'Debit' : 'Credit'}
-                      </div>
+                      <div className="text-xs text-gray-500">Amount</div>
                     </div>
                   </div>
                 </div>

@@ -9,12 +9,24 @@ const AnalyticsPage = () => {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [accounts, setAccounts] = useState([])
+  const [accountFilter, setAccountFilter] = useState('all')
 
   useEffect(() => {
     if (user?.userId) {
       loadAnalyticsData()
+      loadAccounts()
     }
   }, [user])
+
+  const loadAccounts = async () => {
+    try {
+      const data = await apiService.getAccounts()
+      setAccounts(Array.isArray(data) ? data : [])
+    } catch (err) {
+      console.error('Error fetching accounts:', err)
+    }
+  }
 
   const loadAnalyticsData = async () => {
     try {
@@ -110,9 +122,25 @@ const AnalyticsPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-end mb-8 animate-fade-in">
-        {error && <p className="text-sm text-orange-600 mr-4 animate-pulse">Using fallback data - Backend unavailable</p>}
-        <button
+      <div className="flex items-center justify-between mb-8 animate-fade-in">
+        <div>
+          <label className="block text-sm font-medium text-gray-600 mb-2">Filter by Bank Account</label>
+          <select
+            value={accountFilter}
+            onChange={(e) => setAccountFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+          >
+            <option value="all">All Accounts</option>
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.bankName} ••••{account.last4Digits}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-center gap-4">
+          {error && <p className="text-sm text-orange-600 animate-pulse">Using fallback data - Backend unavailable</p>}
+          <button
           onClick={loadAnalyticsData}
           disabled={loading}
           className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 disabled:opacity-50 flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
@@ -129,6 +157,7 @@ const AnalyticsPage = () => {
             </>
           )}
         </button>
+        </div>
       </div>
 
       {/* Two-column grid */}
