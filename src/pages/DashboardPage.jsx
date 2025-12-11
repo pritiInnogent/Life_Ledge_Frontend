@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react'
-import { Zap, DollarSign, Calendar, Receipt, BarChart3, Target, Activity } from 'lucide-react'
+import { Zap, DollarSign, Calendar, Receipt, BarChart3, Target, Activity, CreditCard, PieChart, Repeat, Brain, ArrowRight, Download } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import ApiService from '../services/api'
-import DownloadButton from '../components/DownloadButton'
+import InsightsDownloadService from '../services/insightsDownloadService'
 
-const StatCard = ({ emoji, value, label, change }) => (
+const StatCard = ({ icon: Icon, value, label, change }) => (
   <div className="bg-white rounded-2xl p-6 shadow">
     <div className="flex items-start justify-between mb-3">
-      <div className="text-4xl">{emoji}</div>
+      <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+        <Icon className="w-6 h-6 text-purple-600" />
+      </div>
       <div className="text-sm text-green-600 font-black">{change}</div>
     </div>
     <div className="text-2xl font-black mb-1">{value}</div>
@@ -15,21 +17,75 @@ const StatCard = ({ emoji, value, label, change }) => (
   </div>
 )
 
+const SpendingChart = ({ transactions }) => {
+  // Generate last 7 days spending data
+  const last7Days = Array.from({ length: 7 }, (_, i) => {
+    const date = new Date()
+    date.setDate(date.getDate() - (6 - i))
+    return {
+      date: date.toLocaleDateString('en-US', { weekday: 'short' }),
+      amount: 0
+    }
+  })
+
+  // Aggregate spending by day
+  transactions.forEach(tx => {
+    if (tx.amount < 0) { // Only expenses
+      const txDate = new Date(tx.date)
+      const dayIndex = last7Days.findIndex(day => {
+        const checkDate = new Date()
+        checkDate.setDate(checkDate.getDate() - (6 - last7Days.indexOf(day)))
+        return txDate.toDateString() === checkDate.toDateString()
+      })
+      if (dayIndex !== -1) {
+        last7Days[dayIndex].amount += Math.abs(tx.amount)
+      }
+    }
+  })
+
+  const maxAmount = Math.max(...last7Days.map(d => d.amount), 1)
+
+  return (
+    <div className="h-full flex items-end justify-between gap-2 px-4">
+      {last7Days.map((day, i) => {
+        const height = (day.amount / maxAmount) * 100
+        return (
+          <div key={i} className="flex flex-col items-center flex-1">
+            <div className="text-xs font-medium mb-2 text-gray-600">
+              ₹{day.amount > 0 ? Math.round(day.amount / 1000) + 'k' : '0'}
+            </div>
+            <div 
+              className="w-full bg-gradient-to-t from-purple-500 to-purple-300 rounded-t-lg min-h-[4px] transition-all duration-300"
+              style={{ height: `${Math.max(height, 4)}%` }}
+            />
+            <div className="text-xs font-medium mt-2 text-gray-500">{day.date}</div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const navigate = useNavigate()
   const [totalSpent, setTotalSpent] = useState(0)
   const [transactionCount, setTransactionCount] = useState(0)
   const [recentTransactions, setRecentTransactions] = useState([])
+  const [topCategory, setTopCategory] = useState(null)
+  const [recurringPatterns, setRecurringPatterns] = useState([])
+  const [aiInsights, setAiInsights] = useState(null)
+  const [userBudget, setUserBudget] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        // Fetch recent transactions first (this works)
+        // Fetch recent transactions
         const recentResponse = await ApiService.getRecentTransactions()
         setRecentTransactions(recentResponse || [])
         
-        // Try other endpoints individually with error handling
+        // Fetch total spent
         try {
           const spentResponse = await ApiService.getTotalSpent()
           const totalSpentValue = typeof spentResponse === 'number' ? spentResponse : 
@@ -39,6 +95,7 @@ export default function DashboardPage() {
           console.error('Total spent API failed:', spentError)
         }
         
+        // Fetch transaction count
         try {
           const countResponse = await ApiService.getTransactionCount()
           const countValue = typeof countResponse === 'number' ? countResponse : 
@@ -47,9 +104,54 @@ export default function DashboardPage() {
         } catch (countError) {
           console.error('Transaction count API failed:', countError)
         }
+
+        // Fetch top spending category
+        try {
+          const transactions = await ApiService.getTransactions()
+          const categoryMap = {}
+          transactions.forEach(tx => {
+            const category = tx.category || 'Other'
+            categoryMap[category] = (categoryMap[category] || 0) + Math.abs(tx.amount)
+          })
+          const topCat = Object.entries(categoryMap).sort((a, b) => b[1] - a[1])[0]
+          setTopCategory(topCat ? { name: topCat[0], amount: topCat[1] } : null)
+        } catch (error) {
+          console.error('Error fetching top category:', error)
+        }
+
+        // Fetch recurring patterns
+        try {
+          const recurringResponse = await ApiService.getRecurringPayments()
+          setRecurringPatterns(recurringResponse?.slice(0, 3) || [])
+        } catch (error) {
+          console.error('Error fetching recurring patterns:', error)
+        }
+
+        // Fetch user's budget goals
+        try {
+          const goalsResponse = await ApiService.getUserGoals()
+          const budgetGoals = goalsResponse?.filter(goal => 
+            (goal.type || '').toUpperCase() === 'BUDGET'
+          ) || []
+          const totalBudget = budgetGoals.reduce((sum, goal) => sum + (goal.targetAmount || 0), 0)
+          setUserBudget(totalBudget)
+        } catch (error) {
+          console.error('Error fetching budget goals:', error)
+          setUserBudget(0)
+        }
+
+        // Fetch AI insights
+        try {
+          const insightsResponse = await ApiService.getLatestInsights()
+          if (insightsResponse?.insight?.aiText) {
+            const parsed = JSON.parse(insightsResponse.insight.aiText)
+            setAiInsights(parsed)
+          }
+        } catch (error) {
+          console.error('Error fetching AI insights:', error)
+        }
       } catch (error) {
         console.error('Error fetching dashboard data:', error)
-        // Keep default values on error
       } finally {
         setLoading(false)
       }
@@ -58,74 +160,171 @@ export default function DashboardPage() {
     fetchDashboardData()
   }, [])
 
+  const handleDownloadReport = async () => {
+    setDownloading(true)
+    const reportData = await InsightsDownloadService.generateUserInsightsReport()
+    InsightsDownloadService.downloadReport(reportData)
+    setDownloading(false)
+  }
+
+  // Calculate monthly budget vs spending
+  const currentMonth = new Date().getMonth()
+  const monthlySpent = totalSpent || 0 // Handle null/undefined values
+  const monthlyBudget = userBudget || 0 // Use user's actual budget goals
+  const budgetUsed = monthlyBudget > 0 && monthlySpent > 0 ? Math.round((monthlySpent / monthlyBudget) * 100) : 0
+  
+  // Calculate daily average
+  const currentDate = new Date().getDate()
+  const dailyAverage = currentDate > 0 && monthlySpent > 0 ? Math.round(monthlySpent / currentDate) : 0
+  
   const stats = [
     { 
-      emoji: '💸', 
-      value: loading ? '...' : `₹${totalSpent.toLocaleString()}`, 
-      label: 'Total Spent', 
-      change: '+12%' 
+      icon: DollarSign, 
+      value: loading ? '...' : `₹${monthlySpent.toLocaleString()}`, 
+      label: 'This Month Spent', 
+      change: monthlySpent === 0 ? 'No spending yet' : budgetUsed > 100 ? `${budgetUsed}% over budget` : `${budgetUsed}% of budget` 
     },
-    { emoji: '📅', value: '12', label: 'Subscriptions', change: '2 new' },
-    { emoji: '💰', value: '₹24,720', label: 'Budget Left', change: '55%' },
     { 
-      emoji: '🧾', 
-      value: loading ? '...' : transactionCount.toString(), 
-      label: 'Transactions', 
-      change: '+8%' 
+      icon: Calendar, 
+      value: loading ? '...' : `₹${dailyAverage.toLocaleString()}`, 
+      label: 'Daily Average', 
+      change: monthlySpent === 0 ? 'No data yet' : `${currentDate} days this month` 
+    },
+    { 
+      icon: PieChart, 
+      value: loading ? 'Loading...' : topCategory ? topCategory.name : 'No categories', 
+      label: 'Top Spending Category', 
+      change: topCategory ? `₹${topCategory.amount.toLocaleString()}` : 'No spending yet' 
+    },
+    { 
+      icon: Target, 
+      value: loading ? '...' : monthlyBudget === 0 ? 'No budget set' : `₹${Math.max(0, monthlyBudget - monthlySpent).toLocaleString()}`, 
+      label: 'Budget Remaining', 
+      change: monthlyBudget === 0 ? 'Set budget goals' : monthlySpent === 0 ? 'Full budget available' : monthlySpent > monthlyBudget ? 'Over budget!' : 'On track' 
     },
   ]
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-gray-600">Your financial overview</p>
-        </div>
-        <DownloadButton targetId="dashboard-content" filename="dashboard-report" />
+      <div className="flex justify-end items-center">
+        <button
+          onClick={handleDownloadReport}
+          disabled={downloading}
+          className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-lg font-medium transition-colors"
+        >
+          <Download className="w-4 h-4" />
+          {downloading ? 'Generating...' : 'Report'}
+        </button>
       </div>
-      <div id="dashboard-content" className="space-y-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {stats.map((s, i) => <StatCard key={i} {...s} />)}
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {stats.map((s, i) => <StatCard key={i} {...s} />)}
+      </div>
       <div className="grid md:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-2xl shadow">
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3"><Activity className="w-6 h-6" /><h3 className="font-black">Recent Transactions</h3></div>
+            <div className="flex items-center gap-3">
+              <BarChart3 className="w-6 h-6 text-blue-600" />
+              <h3 className="font-black">Spending Trend</h3>
+            </div>
             <button 
-              onClick={() => navigate('/app/transactions')}
+              onClick={() => navigate('/app/analytics')}
               className="text-sm text-purple-600 font-bold hover:text-purple-800"
             >
-              View All →
+              View Analytics →
             </button>
           </div>
-          <div className="divide-y">
+          <div className="h-48">
             {loading ? (
-              <div className="py-8 text-center text-gray-500">Loading...</div>
+              <div className="flex items-center justify-center h-full text-gray-500">Loading chart...</div>
             ) : recentTransactions.length > 0 ? (
-              recentTransactions.map((tx, i) => (
-                <div key={tx.id || i} className="py-3 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">💳</div>
-                    <div>
-                      <div className="font-black">{tx.merchant || tx.description || 'Transaction'}</div>
-                      <div className="text-sm text-gray-600">{new Date(tx.date).toLocaleDateString()}</div>
-                    </div>
-                  </div>
-                  <div className={`text-right font-black ${tx.amount < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    {tx.amount < 0 ? '-' : '+'}₹{Math.abs(tx.amount).toLocaleString()}
-                  </div>
-                </div>
-              ))
+              <SpendingChart transactions={recentTransactions} />
             ) : (
-              <div className="py-8 text-center text-gray-500">No recent transactions</div>
+              <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                <div className="text-lg font-medium mb-2">No Transaction Data</div>
+                <div className="text-sm">Import your bank statements to see spending trends</div>
+              </div>
             )}
           </div>
         </div>
         <div className="bg-white p-6 rounded-2xl shadow">
-          <h3 className="font-black mb-2">AI Insight Alert! 🤖</h3>
-          <p className="text-gray-700 font-semibold">You saved ₹5,200 this month! Keep it up! 🎉</p>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <Repeat className="w-6 h-6 text-blue-600" />
+              <h3 className="font-black">Upcoming Payments</h3>
+            </div>
+            <button 
+              onClick={() => navigate('/app/recurring')}
+              className="text-sm text-purple-600 font-bold hover:text-purple-800 flex items-center gap-1"
+            >
+              Manage <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="space-y-3">
+            {recurringPatterns.length > 0 ? (
+              recurringPatterns.map((payment, i) => (
+                <div key={i} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                  <div>
+                    <div className="font-medium">{payment.name || payment.merchant}</div>
+                    <div className="text-sm text-gray-600">
+                      Due: {new Date(payment.nextPaymentDate || payment.dueDate).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-bold text-blue-600">₹{payment.amount?.toLocaleString()}</div>
+                    <div className="text-xs text-gray-500">{payment.frequency || 'Monthly'}</div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="bg-gray-50 rounded-lg p-4 text-center">
+                <p className="text-sm text-gray-600">No recurring payments set up.</p>
+                <button 
+                  onClick={() => navigate('/app/recurring')}
+                  className="text-sm text-purple-600 font-medium mt-2"
+                >
+                  Add recurring payment →
+                </button>
+              </div>
+            )}
+          </div>
         </div>
+      </div>
+      
+      {/* Quick Actions */}
+      <div className="bg-white p-6 rounded-2xl shadow">
+        <h3 className="font-black mb-4 flex items-center gap-3">
+          <Zap className="w-6 h-6 text-yellow-600" />
+          Quick Actions
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <button 
+            onClick={() => navigate('/app/transactions')}
+            className="p-4 bg-purple-50 hover:bg-purple-100 rounded-xl transition-colors text-center"
+          >
+            <Receipt className="w-8 h-8 text-purple-600 mx-auto mb-2" />
+            <div className="font-medium text-sm">Add Transaction</div>
+          </button>
+          <button 
+            onClick={() => navigate('/app/goals')}
+            className="p-4 bg-green-50 hover:bg-green-100 rounded-xl transition-colors text-center"
+          >
+            <Target className="w-8 h-8 text-green-600 mx-auto mb-2" />
+            <div className="font-medium text-sm">Set Budget Goal</div>
+          </button>
+          <button 
+            onClick={() => navigate('/app/insights')}
+            className="p-4 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors text-center"
+          >
+            <Brain className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+            <div className="font-medium text-sm">AI Analysis</div>
+          </button>
+          <button 
+            onClick={() => navigate('/app/analytics')}
+            className="p-4 bg-orange-50 hover:orange-100 rounded-xl transition-colors text-center"
+          >
+            <BarChart3 className="w-8 h-8 text-orange-600 mx-auto mb-2" />
+            <div className="font-medium text-sm">View Reports</div>
+          </button>
         </div>
       </div>
     </div>

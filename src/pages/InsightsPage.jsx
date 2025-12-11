@@ -1,7 +1,17 @@
 import React, { useState, useEffect } from "react";
-import { Brain, ChevronDown, RefreshCw, Sparkles, Clock } from "lucide-react";
+import {
+  Brain,
+  DollarSign,
+  Repeat,
+  Target,
+  AlertTriangle,
+  AlertCircle,
+  Info,
+  CheckCircle,
+} from "lucide-react";
 import apiService from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
+import '../styles/animations.css';
 
 const InsightsPage = () => {
   const { user } = useAuth();
@@ -11,82 +21,91 @@ const InsightsPage = () => {
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState(null);
+  const [activeSection, setActiveSection] = useState(null);
   const [accounts, setAccounts] = useState([]);
-  const [selectedAccount, setSelectedAccount] = useState(null);
-  const [showAccountDropdown, setShowAccountDropdown] = useState(false);
-  const [analysisProgress, setAnalysisProgress] = useState(0);
+  const [accountFilter, setAccountFilter] = useState('all');
 
   useEffect(() => {
-    loadAccounts();
-  }, []);
-
-  useEffect(() => {
-    if (selectedAccount) loadInsights();
-  }, [selectedAccount]);
+    if (user?.userId) {
+      // Only fetch existing insights on load, don't auto-analyze
+      fetchExistingInsights();
+      loadAccounts();
+    }
+  }, [user]);
 
   const loadAccounts = async () => {
     try {
-      const accountsData = await apiService.getAccounts();
-      setAccounts(accountsData || []);
-      if (accountsData && accountsData.length > 0) {
-        setSelectedAccount(accountsData[0]);
-      }
+      const data = await apiService.getAccounts();
+      setAccounts(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error('Error loading accounts:', err);
+      console.error('Error fetching accounts:', err);
     }
   };
 
-  const loadInsights = async () => {
-    if (!selectedAccount?.id) {
-      setError('Please select a valid account');
-      setLoading(false);
-      return;
+  // Set default active section on data load
+  useEffect(() => {
+    if (data && !activeSection) {
+      setActiveSection('overall')
     }
-    
+  }, [data, activeSection])
+
+  const fetchExistingInsights = async () => {
     try {
       setLoading(true);
       setError(null);
-      
-      console.log('Loading insights for account ID:', selectedAccount.id);
-      const response = await apiService.getInsightsByAccount(selectedAccount.id);
-      
-      if (response?.insights && response.insights.length > 0) {
-        const processedInsights = response.insights.map(insight => {
-          let insightText = insight.aiText || 'No insights available';
-          let emoji = '💡';
-          let tone = 'neutral';
-          
-          // Try to parse JSON if it's a structured response
-          try {
-            const parsed = JSON.parse(insightText);
-            if (parsed.summary?.text) {
-              insightText = parsed.summary.text;
-              emoji = parsed.summary.emoji || '💡';
-              tone = parsed.summary.tone || 'neutral';
-              if (parsed.nudges && parsed.nudges.length > 0) {
-                insightText += '\n\nKey Recommendations:\n';
-                parsed.nudges.forEach((nudge, i) => {
-                  insightText += `${i + 1}. ${nudge.text}\n`;
-                });
-              }
-            }
-          } catch (e) {
-            // If not JSON, use as is
-          }
-          
-          return {
-            ...insight,
-            processedText: insightText,
-            emoji,
-            tone
-          };
-        });
-        
-        setInsights(processedInsights);
-        setSelectedInsightIndex(0);
-      } else {
-        setInsights([]);
+
+      // Only fetch existing insights, don't trigger new analysis
+      const response = await apiService.getLatestInsights();
+      console.log("Raw API:", response);
+
+      if (!response?.insight?.aiText) {
+        setData(null);
+        return;
       }
+
+      const raw = JSON.parse(response.insight.aiText);
+
+      console.log("Parsed AI text:", raw);
+
+      // 🔥 FINAL FIX — MAP BACKEND → FRONTEND STRUCTURE
+      const mapped = {
+        overall_health: {
+          summary:
+            raw.analysis?.overall_summary ||
+            raw.analysis?.overallSummary ||
+            "Analysis completed",
+
+          emoji: raw.analysis?.emoji || "💡",
+
+          analysis:
+            raw.analysis?.overall_details ||
+            raw.analysis?.overallDetails ||
+            "",
+        },
+
+        spending_breakdown:
+          raw.analysis?.categorized ||
+          raw.analysis?.spendingBreakdown ||
+          [],
+
+        recurring_patterns:
+          raw.analysis?.recurring ||
+          raw.analysis?.recurringPatterns ||
+          [],
+
+        anomalies:
+          raw.analysis?.anomalies ||
+          raw.analysis?.detectedAnomalies ||
+          [],
+
+        nudges:
+          raw.analysis?.nudges ||
+          raw.analysis?.smartNudges ||
+          [],
+      };
+
+      console.log("Mapped Final Data:", mapped);
+      setData(mapped);
     } catch (err) {
       console.error("Error loading insights:", err);
       setError(err.message);
@@ -96,7 +115,75 @@ const InsightsPage = () => {
     }
   };
 
+  const analyzeInsights = async () => {
+    try {
+      setAnalyzing(true);
+      setError(null);
 
+      // Trigger analysis
+      await apiService.analyzeFinancialData();
+
+      // Fetch latest insights
+      const response = await apiService.getLatestInsights();
+      console.log("New analysis results:", response);
+
+      if (!response?.insight?.aiText) {
+        setData(null);
+        return;
+      }
+
+      const raw = JSON.parse(response.insight.aiText);
+      console.log("Parsed AI text:", raw);
+
+      const mapped = {
+        overall_health: {
+          summary: raw.analysis?.overall_summary || raw.analysis?.overallSummary || "Analysis completed",
+          emoji: raw.analysis?.emoji || "💡",
+          analysis: raw.analysis?.overall_details || raw.analysis?.overallDetails || "",
+        },
+        spending_breakdown: raw.analysis?.categorized || raw.analysis?.spendingBreakdown || [],
+        recurring_patterns: raw.analysis?.recurring || raw.analysis?.recurringPatterns || [],
+        anomalies: raw.analysis?.anomalies || raw.analysis?.detectedAnomalies || [],
+        nudges: raw.analysis?.nudges || raw.analysis?.smartNudges || [],
+      };
+
+      console.log("Mapped Final Data:", mapped);
+      setData(mapped);
+    } catch (err) {
+      console.error("Error analyzing insights:", err);
+      setError(err.message);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  // UI helpers
+  const getToneStyle = (tone) => {
+    const styles = {
+      positive: "bg-green-50 border-green-300",
+      warning: "bg-yellow-50 border-yellow-300",
+      neutral: "bg-blue-50 border-blue-300",
+    };
+    return styles[tone] || "bg-gray-50 border-gray-300";
+  };
+
+  const getToneIcon = (tone) => {
+    const icons = {
+      positive: <CheckCircle className="w-5 h-5 text-green-600" />,
+      warning: <AlertTriangle className="w-5 h-5 text-yellow-600" />,
+      neutral: <Info className="w-5 h-5 text-blue-600" />,
+    };
+    return icons[tone] || <Info className="w-5 h-5 text-gray-600" />;
+  };
+
+  const getSeverityIcon = (severity) => {
+    const icons = {
+      high: <AlertTriangle className="w-5 h-5 text-red-600" />,
+      medium: <AlertCircle className="w-5 h-5 text-yellow-600" />,
+      low: <Info className="w-5 h-5 text-blue-600" />,
+    };
+    return icons[severity] || <Info className="w-5 h-5 text-gray-600" />;
+  };
 
   // Loader
   if (loading)
@@ -105,124 +192,41 @@ const InsightsPage = () => {
     );
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-6 space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl p-8 text-white mb-8">
-        <div className="flex justify-between items-start">
-          <div className="flex items-center gap-4">
-            <div className="bg-white/20 p-3 rounded-xl">
-              <Brain className="w-8 h-8" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold mb-2">AI Financial Insights</h1>
-              <p className="text-purple-100">
-                Get personalized insights about your spending patterns and financial health
-              </p>
-            </div>
-          </div>
-          
-          <div className="flex gap-3">
-            {/* Account Dropdown */}
-            <div className="relative">
-              <button
-                onClick={() => setShowAccountDropdown(!showAccountDropdown)}
-                className="flex items-center gap-2 bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-xl hover:bg-white/30 transition"
-              >
-                {selectedAccount ? `${selectedAccount.bankName} ****${selectedAccount.last4Digits}` : 'Select Account'}
-                <ChevronDown className="w-4 h-4" />
-              </button>
-              
-              {showAccountDropdown && (
-                <div className="absolute top-full mt-2 right-0 bg-white border rounded-xl shadow-lg z-10 min-w-48">
-                  {accounts.map((account) => (
-                    <button
-                      key={account.id}
-                      onClick={() => {
-                        setSelectedAccount(account);
-                        setShowAccountDropdown(false);
-                      }}
-                      className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 first:rounded-t-xl last:rounded-b-xl"
-                    >
-                      {account.bankName} ****{account.last4Digits}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            
-            <button
-              data-generate-insights
-              onClick={async () => {
-                if (!selectedAccount?.id) {
-                  setError('Please select a valid account');
-                  return;
-                }
-                try {
-                  setAnalyzing(true);
-                  setError(null);
-                  setAnalysisProgress(0);
-                  
-                  // Simulate progress
-                  const progressInterval = setInterval(() => {
-                    setAnalysisProgress(prev => {
-                      if (prev >= 90) {
-                        clearInterval(progressInterval);
-                        return 90;
-                      }
-                      return prev + 10;
-                    });
-                  }, 300);
-                  
-                  await apiService.runSummaryGeneration(selectedAccount.id);
-                  
-                  clearInterval(progressInterval);
-                  setAnalysisProgress(100);
-                  
-                  setTimeout(() => {
-                    loadInsights();
-                    setAnalyzing(false);
-                    setAnalysisProgress(0);
-                  }, 8000);
-                } catch (error) {
-                  console.error('Analysis failed:', error);
-                  setError(error.message);
-                  setAnalyzing(false);
-                  setAnalysisProgress(0);
-                }
-              }}
-              disabled={analyzing || !selectedAccount?.id}
-              className="flex items-center gap-2 bg-white text-purple-600 px-6 py-2 rounded-xl font-semibold hover:bg-gray-50 transition disabled:opacity-50"
-            >
-              {analyzing ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  Analyzing...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  Generate Insights
-                </>
-              )}
-            </button>
-          </div>
+      <div className="flex justify-between items-center mb-8 animate-fade-in">
+        <div>
+          <label className="block text-sm font-medium text-gray-600 mb-2">Filter by Bank Account</label>
+          <select
+            value={accountFilter}
+            onChange={(e) => setAccountFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+          >
+            <option value="all">All Accounts</option>
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.bankName} ••••{account.last4Digits}
+              </option>
+            ))}
+          </select>
         </div>
-        
-        {/* Progress Bar */}
-        {analyzing && (
-          <div className="mt-6">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm text-purple-100">Analyzing your financial data...</span>
-              <span className="text-sm text-purple-100">{analysisProgress}%</span>
-            </div>
-            <div className="w-full bg-white/20 rounded-full h-2">
-              <div 
-                className="bg-white h-2 rounded-full transition-all duration-300 ease-out"
-                style={{ width: `${analysisProgress}%` }}
-              ></div>
-            </div>
-          </div>
-        )}
+        <button
+          onClick={analyzeInsights}
+          disabled={analyzing}
+          className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 disabled:opacity-50 flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
+        >
+          {analyzing ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              Analyzing...
+            </>
+          ) : (
+            <>
+              <Brain className="w-4 h-4" />
+              {data ? 'Re-analyze' : 'Analyze'}
+            </>
+          )}
+        </button>
       </div>
 
       {/* Error */}
@@ -232,91 +236,288 @@ const InsightsPage = () => {
         </div>
       )}
 
-      {/* AI Insight */}
-      <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-        <div className="bg-gradient-to-r from-gray-50 to-blue-50 p-6 border-b">
-          <h3 className="text-xl font-bold flex items-center gap-2 text-gray-800">
-            <div className="bg-purple-100 p-2 rounded-lg">
-              <Brain className="w-5 h-5 text-purple-600" />
+      {/* Default Layout */}
+      {!data && !analyzing && !loading && (
+        <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-12 shadow-xl border border-white/20 text-center animate-slide-up">
+          <div className="w-20 h-20 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <Brain className="w-10 h-10 text-white" />
+          </div>
+          <h3 className="text-3xl font-black bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent mb-4">AI Financial Insights</h3>
+          <p className="text-gray-600 mb-8 text-lg">Get personalized insights about your spending patterns, anomalies, and smart recommendations</p>
+          <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-6 border border-purple-100">
+            <p className="text-sm font-semibold text-gray-700 mb-4">Our AI will analyze your transactions to provide:</p>
+            <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                Spending breakdown by category
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                Recurring payment patterns
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                Unusual transaction detection
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                Personalized financial nudges
+              </div>
             </div>
-            Your Personalized Financial Insight
-          </h3>
-          <p className="text-gray-600 mt-1">AI-powered analysis of your spending patterns and recommendations</p>
+          </div>
         </div>
-        
-        <div className="p-6">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="relative">
-                <div className="w-16 h-16 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
-                <Clock className="w-6 h-6 text-purple-600 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+      )}
+
+      {/* Professional Analyzing State */}
+      {analyzing && (
+        <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-12 shadow-xl border border-white/20 text-center animate-slide-up">
+          <div className="w-20 h-20 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <Brain className="w-10 h-10 text-white" />
+          </div>
+          <h3 className="text-3xl font-black bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent mb-4">Analyzing Your Financial Data</h3>
+          <p className="text-gray-600 mb-6 text-lg">Our AI is processing your transactions and generating personalized insights...</p>
+          <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-6 border border-purple-100">
+            <div className="flex items-center justify-center space-x-3 mb-4">
+              <div className="w-3 h-3 bg-purple-500 rounded-full animate-bounce"></div>
+              <div className="w-3 h-3 bg-indigo-500 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+              <div className="w-3 h-3 bg-purple-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+            </div>
+            <p className="text-sm font-semibold text-purple-700">This may take a few moments...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Data Available */}
+      {data && (
+        <>
+          {/* Professional Tab Navigation */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl border border-white/20 overflow-hidden animate-slide-up">
+            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 px-1 py-1">
+              <div className="flex gap-1">
+                {[
+                  { id: 'overall', label: 'Overview', icon: Brain },
+                  { id: 'categories', label: 'Spending', icon: DollarSign },
+                  { id: 'recurring', label: 'Patterns', icon: Repeat },
+                  { id: 'anomalies', label: 'Anomalies', icon: AlertTriangle },
+                  { id: 'nudges', label: 'Recommendations', icon: Target }
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveSection(tab.id)}
+                    className={`flex-1 px-4 py-3 text-sm font-semibold rounded-2xl transition-all duration-200 ${
+                      activeSection === tab.id
+                        ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg scale-105'
+                        : 'text-gray-600 hover:text-gray-800 hover:bg-white/70'
+                    }`}
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      <tab.icon className="w-4 h-4" />
+                      <span className="hidden sm:inline">{tab.label}</span>
+                    </div>
+                  </button>
+                ))}
               </div>
               <p className="text-gray-600 mt-4 font-medium">Loading your insights...</p>
               <p className="text-gray-400 text-sm mt-1">This may take a few moments</p>
             </div>
-          ) : insights.length > 0 ? (
-            <div>
-              {/* Insight Navigation */}
-              {insights.length > 1 && (
-                <div className="flex justify-between items-center mb-4">
-                  <button
-                    onClick={() => setSelectedInsightIndex(Math.max(0, selectedInsightIndex - 1))}
-                    disabled={selectedInsightIndex === 0}
-                    className="px-4 py-2 bg-gray-100 rounded-lg disabled:opacity-50 hover:bg-gray-200 transition"
-                  >
-                    ← Previous
-                  </button>
-                  <span className="text-sm text-gray-600">
-                    {selectedInsightIndex + 1} of {insights.length} insights
-                  </span>
-                  <button
-                    onClick={() => setSelectedInsightIndex(Math.min(insights.length - 1, selectedInsightIndex + 1))}
-                    disabled={selectedInsightIndex === insights.length - 1}
-                    className="px-4 py-2 bg-gray-100 rounded-lg disabled:opacity-50 hover:bg-gray-200 transition"
-                  >
-                    Next →
-                  </button>
-                </div>
-              )}
-              
-              {/* Current Insight */}
-              <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-100">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="text-2xl">{insights[selectedInsightIndex]?.emoji}</span>
-                  <span className="text-sm text-gray-500">
-                    {new Date(insights[selectedInsightIndex]?.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-                <div className="prose prose-gray max-w-none">
-                  <div className="whitespace-pre-wrap text-gray-800 leading-relaxed text-base">
-                    {insights[selectedInsightIndex]?.processedText}
+
+            {/* Tab Content */}
+            <div className="p-8">
+              {activeSection === 'overall' && (
+                <div className="space-y-6">
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="p-4 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-2xl shadow-lg">
+                      <Brain className="w-8 h-8 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-3xl font-black bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">Financial Health Overview</h3>
+                      <p className="text-gray-600 mt-1 font-medium">AI-powered analysis of your financial status</p>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50 rounded-2xl p-8 border border-purple-100 shadow-lg">
+                    <div className="prose prose-lg max-w-none">
+                      <p className="text-gray-800 leading-relaxed text-lg font-medium">
+                        {data.overall_health.summary}
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
+
+              {activeSection === 'categories' && (
+                <div className="space-y-6">
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="p-4 bg-gradient-to-br from-emerald-500 to-green-600 rounded-2xl shadow-lg">
+                      <DollarSign className="w-8 h-8 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-3xl font-black bg-gradient-to-r from-emerald-600 to-green-600 bg-clip-text text-transparent">Spending Analysis</h3>
+                      <p className="text-gray-600 mt-1 font-medium">Breakdown of your expenses by category</p>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 overflow-hidden shadow-lg">
+                    <div className="divide-y divide-gray-100">
+                      {data.spending_breakdown.map((category, index) => (
+                        <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                              <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+                              <span className="font-medium text-gray-900">{category.category || category.name}</span>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-bold text-emerald-600">
+                                ₹{(category.amount || category.total || 0).toLocaleString()}
+                              </div>
+                              <div className="text-sm text-gray-500">{category.percentage || '0'}%</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {data.spending_breakdown.length === 0 && (
+                        <div className="p-8 text-center">
+                          <p className="text-gray-500">No spending data available</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeSection === 'recurring' && (
+                <div className="space-y-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-lg">
+                      <Repeat className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-3xl font-bold text-gray-900">Recurring Patterns</h3>
+                      <p className="text-gray-600 mt-1">Identified spending patterns and subscriptions</p>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                    <div className="divide-y divide-gray-100">
+                      {data.recurring_patterns.map((pattern, index) => (
+                        <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                              <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                              <div>
+                                <div className="font-medium text-gray-900">{pattern.merchant}</div>
+                                <div className="text-sm text-gray-500">{pattern.frequency}</div>
+                              </div>
+                            </div>
+                            <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs">Active</span>
+                          </div>
+                        </div>
+                      ))}
+                      {data.recurring_patterns.length === 0 && (
+                        <div className="p-8 text-center">
+                          <p className="text-gray-500">No patterns identified</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeSection === 'anomalies' && (
+                <div className="space-y-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl shadow-lg">
+                      <AlertTriangle className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-3xl font-bold text-gray-900">Anomalies & Alerts</h3>
+                      <p className="text-gray-600 mt-1">Unusual patterns and potential issues detected</p>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                    <div className="divide-y divide-gray-100">
+                      {data.anomalies.map((anomaly, index) => (
+                        <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                              <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                              <div>
+                                <div className="font-medium text-gray-900">{anomaly.reason}</div>
+                                <div className="text-sm text-gray-500">₹{anomaly.amount} • {anomaly.category}</div>
+                              </div>
+                            </div>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              anomaly.severity === 'high' ? 'bg-red-100 text-red-700' :
+                              anomaly.severity === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-blue-100 text-blue-700'
+                            }`}>
+                              {anomaly.severity?.toUpperCase() || 'LOW'}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                      {data.anomalies.length === 0 && (
+                        <div className="p-8 text-center">
+                          <p className="text-gray-500">No anomalies detected</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeSection === 'nudges' && (
+                <div className="space-y-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-lg">
+                      <Target className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-3xl font-bold text-gray-900">Smart Recommendations</h3>
+                      <p className="text-gray-600 mt-1">AI-powered insights to improve your finances</p>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                    <div className="divide-y divide-gray-100">
+                      {data.nudges.map((nudge, index) => (
+                        <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                              <div className="w-3 h-3 rounded-full bg-indigo-500"></div>
+                              <div>
+                                <div className="font-medium text-gray-900">{nudge.message}</div>
+                                <div className="text-sm text-gray-500">{nudge.type}</div>
+                              </div>
+                            </div>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              nudge.tone === 'positive' ? 'bg-green-100 text-green-700' :
+                              nudge.tone === 'warning' ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-blue-100 text-blue-700'
+                            }`}>
+                              {nudge.tone?.toUpperCase() || 'NEUTRAL'}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                      {data.nudges.length === 0 && (
+                        <div className="p-8 text-center">
+                          <p className="text-gray-500">No recommendations available</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="text-center py-12">
-              <div className="bg-gray-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Brain className="w-10 h-10 text-gray-400" />
-              </div>
-              <h4 className="text-lg font-semibold text-gray-700 mb-2">No Insights Available</h4>
-              <p className="text-gray-500 mb-6">Generate AI insights to get personalized financial recommendations</p>
-              <button
-                onClick={() => {
-                  if (selectedAccount?.id) {
-                    document.querySelector('[data-generate-insights]').click();
-                  }
-                }}
-                className="bg-purple-600 text-white px-6 py-2 rounded-xl hover:bg-purple-700 transition"
-              >
-                Generate Your First Insight
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };
 
 export default InsightsPage;
+
+

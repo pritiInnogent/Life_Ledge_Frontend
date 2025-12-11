@@ -95,8 +95,14 @@ export function AuthProvider({ children }) {
     }
   }
 
-  const logout = () => {
-    clearAuthData()
+  const logout = async () => {
+    try {
+      await apiService.signout()
+    } catch (error) {
+      console.error('Logout API error:', error)
+    } finally {
+      clearAuthData()
+    }
   }
 
   return (

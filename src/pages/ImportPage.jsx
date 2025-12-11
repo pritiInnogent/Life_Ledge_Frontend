@@ -272,12 +272,7 @@ export default function ImportPage() {
         </div>
       )}
 
-      <div>
-        <h1 className="text-3xl font-bold mb-1">Import</h1>
-        <p className="text-gray-600">
-          Upload CSV, extract PDF data, or enter transactions manually
-        </p>
-      </div>
+
 
       <div className="bg-white rounded-2xl shadow p-6">
         {/* TABS */}

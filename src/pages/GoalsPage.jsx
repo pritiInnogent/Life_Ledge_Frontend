@@ -13,29 +13,39 @@ const GoalCard = ({ goal, onDelete, onEdit, onContribute }) => {
   const isOverdue = daysLeft < 0
   const isCompleted = progress >= 100
   
-  const getStatusColor = () => {
-    if (isCompleted) return 'text-green-600'
-    if (isOverdue) return 'text-red-600'
-    if (progress > 70) return 'text-yellow-600'
-    return 'text-blue-600'
+  const getGradient = () => {
+    if (isCompleted) return 'from-green-500 to-emerald-600'
+    if (isOverdue) return 'from-red-500 to-rose-600'
+    if (progress > 70) return 'from-yellow-500 to-orange-500'
+    return 'from-blue-500 to-indigo-600'
   }
   
   const getStatusIcon = () => {
-    if (isCompleted) return <CheckCircle2 className="w-5 h-5 text-green-600" />
-    if (isOverdue) return <AlertCircle className="w-5 h-5 text-red-600" />
-    return <Clock className="w-5 h-5 text-blue-600" />
+    if (isCompleted) return <CheckCircle2 className="w-5 h-5 text-white" />
+    if (isOverdue) return <AlertCircle className="w-5 h-5 text-white" />
+    return <Clock className="w-5 h-5 text-white" />
   }
   
   return (
-    <div className="bg-white rounded-2xl p-6 shadow hover:shadow-lg transition-shadow">
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-            <Target className="w-5 h-5 text-purple-600" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-lg">{goal.name}</h3>
-            <p className="text-sm text-gray-600">{goal.category}</p>
+    <div className="group relative bg-gradient-to-br from-white via-gray-50 to-gray-100 rounded-3xl p-6 shadow-xl border border-gray-200/50 hover:shadow-2xl transition-all duration-500 hover:scale-105 overflow-hidden">
+      {/* Background Pattern */}
+      <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-transparent to-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+      
+      <div className="relative z-10">
+        <div className="flex items-start justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <div className={`w-14 h-14 bg-gradient-to-br ${getGradient()} rounded-2xl flex items-center justify-center shadow-lg`}>
+              {getStatusIcon()}
+            </div>
+            <div>
+              <h3 className="font-black text-xl text-gray-900 mb-1">{goal.name}</h3>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-600">{goal.category}</span>
+                <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-bold uppercase tracking-wide">
+                  {goal.type?.replace('_', ' ') || 'Budget'}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -104,7 +114,7 @@ const GoalForm = ({ goal, onSave, onCancel }) => {
     targetAmount: goal?.targetAmount || '',
     currentAmount: goal?.currentAmount || 0,
     endDate: goal?.endDate || '',
-    type: goal?.type || 'budget',
+    type: goal?.type || 'BUDGET',
     emoji: goal?.emoji || 'target'
   })
   const [errors, setErrors] = useState({})
@@ -206,9 +216,9 @@ const GoalForm = ({ goal, onSave, onCancel }) => {
                 onChange={(e) => setFormData({...formData, type: e.target.value})}
                 className="w-full p-3 border border-gray-300 rounded-lg font-semibold"
               >
-                <option value="budget">Budget</option>
-                <option value="savings">Savings</option>
-                <option value="spending">Spending Cap</option>
+                <option value="BUDGET">Budget</option>
+                <option value="SAVING">Savings</option>
+                <option value="SPENDING_CAP">Spending Cap</option>
               </select>
             </div>
             <div>
@@ -392,7 +402,14 @@ export default function GoalsPage() {
   
   const filteredGoals = goals.filter(goal => {
     if (filter === 'all') return true
-    return goal.type === filter
+    
+    // Handle case sensitivity and missing type field
+    const goalType = (goal.type || 'BUDGET').toUpperCase()
+    
+    if (filter === 'budget') return goalType === 'BUDGET'
+    if (filter === 'savings') return goalType === 'SAVING' 
+    if (filter === 'spending') return goalType === 'SPENDING_CAP'
+    return true
   })
   
   const stats = {
@@ -418,9 +435,9 @@ export default function GoalsPage() {
   }
   
   return (
-    <div className="space-y-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-indigo-100 p-6 space-y-8">
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 animate-pulse">
           <p className="text-red-800 font-semibold">Error: {error}</p>
         </div>
       )}
@@ -493,48 +510,66 @@ export default function GoalsPage() {
       )}
       
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white rounded-2xl p-6 shadow">
-          <div className="flex items-center gap-3 mb-2">
-            <Target className="w-6 h-6 text-purple-600" />
-            <span className="font-bold text-gray-600">Total Goals</span>
+        <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-xl border border-white/50 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.1s'}}>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+              <Target className="w-6 h-6 text-white" />
+            </div>
+            <span className="font-bold text-gray-700">Total Goals</span>
           </div>
-          <div className="text-2xl font-black">{stats.total}</div>
+          <div className="text-3xl font-black text-gray-900">{stats.total}</div>
         </div>
-        <div className="bg-white rounded-2xl p-6 shadow">
-          <div className="flex items-center gap-3 mb-2">
-            <CheckCircle2 className="w-6 h-6 text-green-600" />
-            <span className="font-bold text-gray-600">Completed</span>
+        <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-xl border border-white/50 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.2s'}}>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg">
+              <CheckCircle2 className="w-6 h-6 text-white" />
+            </div>
+            <span className="font-bold text-gray-700">Completed</span>
           </div>
-          <div className="text-2xl font-black text-green-600">{stats.completed}</div>
+          <div className="text-3xl font-black text-green-600">{stats.completed}</div>
         </div>
-        <div className="bg-white rounded-2xl p-6 shadow">
-          <div className="flex items-center gap-3 mb-2">
-            <TrendingUp className="w-6 h-6 text-blue-600" />
-            <span className="font-bold text-gray-600">On Track</span>
+        <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-xl border border-white/50 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.3s'}}>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-2xl flex items-center justify-center shadow-lg">
+              <TrendingUp className="w-6 h-6 text-white" />
+            </div>
+            <span className="font-bold text-gray-700">On Track</span>
           </div>
-          <div className="text-2xl font-black text-blue-600">{stats.onTrack}</div>
+          <div className="text-3xl font-black text-blue-600">{stats.onTrack}</div>
         </div>
-        <div className="bg-white rounded-2xl p-6 shadow">
-          <div className="flex items-center gap-3 mb-2">
-            <AlertCircle className="w-6 h-6 text-red-600" />
-            <span className="font-bold text-gray-600">Overdue</span>
+        <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-xl border border-white/50 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.4s'}}>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-rose-600 rounded-2xl flex items-center justify-center shadow-lg">
+              <AlertCircle className="w-6 h-6 text-white" />
+            </div>
+            <span className="font-bold text-gray-700">Overdue</span>
           </div>
-          <div className="text-2xl font-black text-red-600">{stats.overdue}</div>
+          <div className="text-3xl font-black text-red-600">{stats.overdue}</div>
         </div>
       </div>
       
-      <div className="flex gap-4">
-        {['all', 'budget', 'savings', 'spending'].map(type => (
+      <div className="flex gap-4 flex-wrap animate-fade-in" style={{animationDelay: '0.5s'}}>
+        {[
+          { key: 'all', label: 'All Goals', count: goals.length, gradient: 'from-gray-500 to-gray-600' },
+          { key: 'budget', label: 'Budget Goals', count: goals.filter(g => (g.type || 'BUDGET').toUpperCase() === 'BUDGET').length, gradient: 'from-purple-500 to-indigo-600' },
+          { key: 'savings', label: 'Savings Goals', count: goals.filter(g => (g.type || 'BUDGET').toUpperCase() === 'SAVING').length, gradient: 'from-green-500 to-emerald-600' },
+          { key: 'spending', label: 'Spending Caps', count: goals.filter(g => (g.type || 'BUDGET').toUpperCase() === 'SPENDING_CAP').length, gradient: 'from-red-500 to-rose-600' }
+        ].map(({ key, label, count, gradient }) => (
           <button
-            key={type}
-            onClick={() => setFilter(type)}
-            className={`px-4 py-2 rounded-lg font-bold capitalize transition-colors ${
-              filter === type 
-                ? 'bg-purple-600 text-white' 
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            key={key}
+            onClick={() => setFilter(key)}
+            className={`px-6 py-3 rounded-2xl font-bold transition-all duration-300 flex items-center gap-3 transform hover:scale-105 ${
+              filter === key 
+                ? `bg-gradient-to-r ${gradient} text-white shadow-xl` 
+                : 'bg-white/80 backdrop-blur-sm text-gray-700 hover:bg-white shadow-lg border border-white/50'
             }`}
           >
-            {type === 'all' ? 'All Goals' : `${type} Goals`}
+            <span>{label}</span>
+            <span className={`text-xs px-3 py-1 rounded-full font-black ${
+              filter === key ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-600'
+            }`}>
+              {count}
+            </span>
           </button>
         ))}
       </div>
@@ -552,15 +587,24 @@ export default function GoalsPage() {
           ))}
         </div>
       ) : (
-        <div className="bg-white rounded-2xl p-12 shadow text-center">
-          <Target className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="font-black text-xl text-gray-600 mb-2">No Goals Yet</h3>
-          <p className="text-gray-500 mb-6">Create your first financial goal to start tracking your progress</p>
+        <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-16 shadow-2xl text-center border border-white/50 animate-fade-in">
+          <div className="w-24 h-24 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl">
+            <Target className="w-12 h-12 text-white" />
+          </div>
+          <h3 className="font-black text-2xl text-gray-800 mb-4">
+            {filter === 'all' ? 'No Goals Yet' : `No ${filter.charAt(0).toUpperCase() + filter.slice(1)} Goals`}
+          </h3>
+          <p className="text-gray-600 mb-8 text-lg">
+            {filter === 'all' 
+              ? 'Create your first financial goal to start tracking your progress'
+              : `You haven't created any ${filter} goals yet. Click below to create one.`
+            }
+          </p>
           <button
             onClick={() => setShowForm(true)}
-            className="bg-purple-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-purple-700 transition-colors"
+            className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-4 rounded-2xl font-bold hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 shadow-xl hover:shadow-2xl transform hover:scale-105"
           >
-            Create Your First Goal
+            {filter === 'all' ? 'Create Your First Goal' : `Create ${filter.charAt(0).toUpperCase() + filter.slice(1)} Goal`}
           </button>
         </div>
       )}

@@ -10,14 +10,24 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import ApiService from "../services/api";
+import { useTheme } from "../contexts/ThemeContext";
 
 export default function SettingsPage() {
   const navigate = useNavigate();
+  const { darkMode, toggleDarkMode } = useTheme();
   const [settings, setSettings] = useState({
-    darkMode: false,
     language: "en",
     twoFactorAuth: false,
   });
+  const [showLanguageModal, setShowLanguageModal] = useState(false);
+  
+  const languages = [
+    { code: 'en', name: 'English' },
+    { code: 'es', name: 'Español' },
+    { code: 'fr', name: 'Français' },
+    { code: 'de', name: 'Deutsch' },
+    { code: 'hi', name: 'हिन्दी' }
+  ];
 
   useEffect(() => {
     loadSettings();
@@ -26,30 +36,33 @@ export default function SettingsPage() {
   const loadSettings = () => {
     const savedSettings = JSON.parse(localStorage.getItem("userSettings") || "{}");
     setSettings({
-      darkMode: savedSettings.darkMode || false,
       language: savedSettings.language || "en",
       twoFactorAuth: savedSettings.twoFactorAuth || false,
     });
-
-    document.documentElement.classList.toggle("dark", savedSettings.darkMode);
   };
 
   const handleSettingChange = (key, value) => {
-    const updated = { ...settings, [key]: value };
-    setSettings(updated);
-    localStorage.setItem("userSettings", JSON.stringify(updated));
-
     if (key === "darkMode") {
-      document.documentElement.classList.toggle("dark", value);
+      toggleDarkMode(value);
+    } else {
+      const updated = { ...settings, [key]: value };
+      setSettings(updated);
+      const savedSettings = JSON.parse(localStorage.getItem("userSettings") || "{}");
+      localStorage.setItem("userSettings", JSON.stringify({ ...savedSettings, [key]: value }));
     }
+  };
+  
+  const handleLanguageChange = (langCode) => {
+    handleSettingChange('language', langCode);
+    setShowLanguageModal(false);
   };
 
   return (
-    <div className="p-6 space-y-8">
+    <div className={`p-6 space-y-8 min-h-screen transition-colors ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       {/* Page Title */}
       <div>
-        <h1 className="text-3xl font-black">Settings</h1>
-        <p className="text-gray-600 font-semibold">Manage your preferences</p>
+        <h1 className={`text-3xl font-black ${darkMode ? 'text-white' : 'text-gray-900'}`}>Settings</h1>
+        <p className={`font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Manage your preferences</p>
       </div>
 
       {/* GRID LAYOUT */}
@@ -93,31 +106,42 @@ export default function SettingsPage() {
           {/* Dark mode */}
           <div className="flex items-center justify-between py-4">
             <div>
-              <h3 className="font-bold text-gray-900">Dark Mode</h3>
-              <p className="text-sm text-gray-600">Enable dark theme</p>
+              <h3 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Dark Mode</h3>
+              <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Enable dark theme</p>
             </div>
 
             <SwitchToggle
-              value={settings.darkMode}
+              value={darkMode}
               onChange={(v) => handleSettingChange("darkMode", v)}
             />
           </div>
 
           {/* Language */}
-          <SettingsItem
-            icon={<Globe className="text-purple-600" />}
-            label="Language"
-            desc="Select your display language"
-            onClick={() => console.log("Open Language Selector")}
-          />
+          <div className="flex items-center justify-between py-4">
+            <div className="flex items-center gap-4">
+              <Globe className="text-purple-600 w-8 h-8" />
+              <div>
+                <h3 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Language</h3>
+                <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                  Current: {languages.find(l => l.code === settings.language)?.name}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowLanguageModal(true)}
+              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition"
+            >
+              Change
+            </button>
+          </div>
         </SettingsCard>
 
         {/* =============== SECURITY CARD =============== */}
         <SettingsCard title="Security">
           <div className="flex items-center justify-between py-4">
             <div>
-              <h3 className="font-bold text-gray-900">Two-factor authentication</h3>
-              <p className="text-sm text-gray-600">Secure your account with 2FA</p>
+              <h3 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Two-factor authentication</h3>
+              <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Secure your account with 2FA</p>
             </div>
 
             <SwitchToggle
@@ -134,6 +158,42 @@ export default function SettingsPage() {
           />
         </SettingsCard>
       </div>
+      
+      {/* Language Selection Modal */}
+      {showLanguageModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className={`rounded-2xl p-6 w-96 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <h3 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Select Language</h3>
+            <div className="space-y-2">
+              {languages.map((lang) => (
+                <button
+                  key={lang.code}
+                  onClick={() => handleLanguageChange(lang.code)}
+                  className={`w-full text-left p-3 rounded-lg transition ${
+                    settings.language === lang.code
+                      ? 'bg-purple-600 text-white'
+                      : darkMode
+                      ? 'hover:bg-gray-700 text-gray-300'
+                      : 'hover:bg-gray-100 text-gray-900'
+                  }`}
+                >
+                  {lang.name}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setShowLanguageModal(false)}
+              className={`mt-4 w-full py-2 rounded-lg transition ${
+                darkMode
+                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -141,25 +201,39 @@ export default function SettingsPage() {
 /* ========================= REUSABLE COMPONENTS ========================= */
 
 function SettingsCard({ title, children }) {
+  const { darkMode } = useTheme();
+  
   return (
-    <div className="bg-white rounded-2xl p-6 shadow space-y-2">
-      <h2 className="text-xl font-black mb-4">{title}</h2>
+    <div className={`rounded-2xl p-6 shadow space-y-2 transition-colors ${
+      darkMode ? 'bg-gray-800' : 'bg-white'
+    }`}>
+      <h2 className={`text-xl font-black mb-4 ${
+        darkMode ? 'text-white' : 'text-gray-900'
+      }`}>{title}</h2>
       {children}
     </div>
   );
 }
 
 function SettingsItem({ icon, label, desc, onClick }) {
+  const { darkMode } = useTheme();
+  
   return (
     <button
       onClick={onClick}
-      className="flex items-start gap-4 w-full text-left py-3 px-2 rounded-lg hover:bg-gray-100 transition"
+      className={`flex items-start gap-4 w-full text-left py-3 px-2 rounded-lg transition ${
+        darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+      }`}
     >
       <div className="w-8 h-8 flex items-center justify-center">{icon}</div>
 
       <div>
-        <h3 className="font-bold text-gray-900">{label}</h3>
-        <p className="text-sm text-gray-600">{desc}</p>
+        <h3 className={`font-bold ${
+          darkMode ? 'text-white' : 'text-gray-900'
+        }`}>{label}</h3>
+        <p className={`text-sm ${
+          darkMode ? 'text-gray-300' : 'text-gray-600'
+        }`}>{desc}</p>
       </div>
     </button>
   );

@@ -3,6 +3,7 @@
 import React from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
+import { ThemeProvider } from './contexts/ThemeContext'
 
 import HomePage from './pages/Homepage'
 import LoginPage from './pages/LoginPage'
@@ -17,7 +18,7 @@ import RecurringPage from './pages/RecurringPage'
 import GoalsPage from './pages/GoalsPage'
 import InsightsPage from './pages/InsightsPage'
 import ImportPage from './pages/ImportPage'
-import SettingsPage from './pages/SettingsPage'
+
 import ProfilePage from './pages/ProfilePage'
 
 import { useAuth } from './contexts/AuthContext'
@@ -38,7 +39,8 @@ function ProtectedRoute({ children }) {
 
 export default function App() {
   return (
-    <AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
       <Routes>
 
         {/* PUBLIC ROUTES */}
@@ -55,7 +57,8 @@ export default function App() {
             </ProtectedRoute>
           }
         >
-          <Route path="dashboard" element={<DashboardPage />} />
+          <Route index element={<Navigate to="import" replace />} />
+          <Route path="dashboard" element={<AnalyticsPage />} />
           <Route path="transactions" element={<TransactionsPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
           <Route path="categories" element={<CategoriesPage />} />
@@ -63,7 +66,7 @@ export default function App() {
           <Route path="goals" element={<GoalsPage />} />
           <Route path="insights" element={<InsightsPage />} />
           <Route path="import" element={<ImportPage />} />
-          <Route path="settings" element={<SettingsPage />} />
+
           <Route path="profile" element={<ProfilePage />} />
         </Route>
 
@@ -71,6 +74,7 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
 
       </Routes>
-    </AuthProvider>
+      </AuthProvider>
+    </ThemeProvider>
   )
 }

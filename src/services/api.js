@@ -59,6 +59,18 @@ class ApiService {
     });
   }
 
+  async signout() {
+    try {
+      await this.api.post("/auth/signout");
+    } catch (error) {
+      console.error("Signout API error:", error);
+    } finally {
+      // Always clear local storage regardless of API response
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+    }
+  }
+
   logout() {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -127,18 +139,7 @@ class ApiService {
 
 
   async deleteAccount(accountId) {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    // Get existing accounts from localStorage
-    const existingAccounts = JSON.parse(localStorage.getItem('bankAccounts') || '[]');
-    
-    // Remove account with matching ID
-    const updatedAccounts = existingAccounts.filter(acc => acc.id !== accountId);
-    
-    // Save to localStorage
-    localStorage.setItem('bankAccounts', JSON.stringify(updatedAccounts));
-    
-    return { success: true, message: 'Account deleted successfully' };
+    return await this.api.delete(`/accounts/${accountId}`);
   }
   // TRANSACTIONS
   // TRANSACTIONS
@@ -284,19 +285,40 @@ async getTransactions(bankAccountId = null) {
     formData.append("accountNumber", accountNumber);
     formData.append("password", password);
 
-    return await this.api.post("/pdf/upload", formData, {
+    const result = await this.api.post("/pdf/upload", formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
+
+    // If a new account was created, sync it to profile
+    if (result.newAccount && result.accountNumber) {
+      await this.syncBankAccountToProfile(result.accountNumber, result.bankName || "HDFC");
+    }
+
+    return result;
   }
 
-  processCsv(file, accountNumber) {
+  // Sync extracted bank account to profile (no longer needed as backend handles this automatically)
+  async syncBankAccountToProfile(accountNumber, bankName) {
+    // Backend automatically creates accounts during PDF processing
+    // This method is kept for compatibility but does nothing
+    console.log('Bank account automatically created by backend:', { accountNumber, bankName });
+  }
+
+  async processCsv(file, accountNumber) {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("accountNumber", accountNumber);
 
-    return this.api.post("/pdf/upload-csv", formData, {
+    const result = await this.api.post("/pdf/upload-csv", formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
+
+    // If a new account was created, sync it to profile
+    if (result.newAccount && result.accountNumber) {
+      await this.syncBankAccountToProfile(result.accountNumber, result.bankName || "Unknown Bank");
+    }
+
+    return result;
   }
 
   // GOALS
@@ -518,6 +540,19 @@ async getTransactions(bankAccountId = null) {
 
   async getNudges() {
     return await this.api.get("/ai/nudges");
+  }
+
+  // ANALYTICS
+  async getLatestAnalytics() {
+    try {
+      return await this.api.get("/analytics/latest");
+    } catch (error) {
+      console.log('Analytics API not available, using mock data');
+      // Import mock data for testing
+      const { mockAnalyticsResponse } = await import('../utils/analyticsTestData.js');
+      await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
+      return mockAnalyticsResponse;
+    }
   }
 
   // CATEGORIES

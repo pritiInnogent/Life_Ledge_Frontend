@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react'
 import { TrendingUp, Calendar, BarChart3 } from 'lucide-react'
 import apiService from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
-import DownloadButton from '../components/DownloadButton'
 import '../styles/animations.css'
 
 const AnalyticsPage = () => {
@@ -122,17 +121,7 @@ const AnalyticsPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-6 space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">Analytics</h1>
-          <p className="text-gray-600">Comprehensive financial insights</p>
-        </div>
-        <DownloadButton targetId="analytics-content" filename="analytics-report" />
-      </div>
-      
-      <div id="analytics-content" className="space-y-6">
-      {/* Filter Header */}
+      {/* Header */}
       <div className="flex items-center justify-between mb-8 animate-fade-in">
         <div>
           <label className="block text-sm font-medium text-gray-600 mb-2">Filter by Bank Account</label>
@@ -246,7 +235,6 @@ const AnalyticsPage = () => {
           Spending Averages
         </h3>
         <AveragesChart averages={data.averages} />
-      </div>
       </div>
     </div>
   )

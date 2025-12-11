@@ -6,16 +6,21 @@ import {
   Phone,
   Save,
   X,
-  Banknote
+  Banknote,
+  Globe,
+  ShieldCheck,
+  Palette
 } from "lucide-react";
 
 import apiService from "../services/api";
+import { useTheme } from "../contexts/ThemeContext";
 import "../styles/ProfilePage.css";
 
 export default function ProfilePage() {
   // ----------------------------
   // STATES
   // ----------------------------
+  const { darkMode, toggleDarkMode } = useTheme();
   const [profile, setProfile] = useState({
     name: "",
     email: "",
@@ -35,6 +40,19 @@ export default function ProfilePage() {
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  
+  const [settings, setSettings] = useState({
+    language: "en",
+  });
+  const [showLanguageModal, setShowLanguageModal] = useState(false);
+  
+  const languages = [
+    { code: 'en', name: 'English' },
+    { code: 'es', name: 'Español' },
+    { code: 'fr', name: 'Français' },
+    { code: 'de', name: 'Deutsch' },
+    { code: 'hi', name: 'हिन्दी' }
+  ];
 
   // ----------------------------
   // LOAD DATA
@@ -42,7 +60,43 @@ export default function ProfilePage() {
   useEffect(() => {
     loadProfile();
     loadBankAccounts();
+    loadSettings();
   }, []);
+
+  const loadSettings = () => {
+    const savedSettings = JSON.parse(localStorage.getItem("userSettings") || "{}");
+    setSettings({
+      language: savedSettings.language || "en",
+    });
+  };
+
+  const handleSettingChange = (key, value) => {
+    if (key === "darkMode") {
+      toggleDarkMode(value);
+    } else {
+      const updated = { ...settings, [key]: value };
+      setSettings(updated);
+      const savedSettings = JSON.parse(localStorage.getItem("userSettings") || "{}");
+      localStorage.setItem("userSettings", JSON.stringify({ ...savedSettings, [key]: value }));
+    }
+  };
+  
+  const handleLanguageChange = (langCode) => {
+    handleSettingChange('language', langCode);
+    setShowLanguageModal(false);
+  };
+
+  const handleForgotPassword = async () => {
+    try {
+      setLoading(true);
+      await apiService.api.post('/auth/forgot-password', { email: profile.email });
+      setSuccess('Password reset email sent! Check your inbox.');
+    } catch (err) {
+      setError('Failed to send password reset email');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadProfile = async () => {
     try {
@@ -90,14 +144,32 @@ export default function ProfilePage() {
     const file = event.target.files[0];
     if (!file) return;
 
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setError('Please select a valid image file');
+      return;
+    }
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image size must be less than 5MB');
+      return;
+    }
+
     try {
       setUploadingImage(true);
+      setError('');
+
+      const formData = new FormData();
+      formData.append("file", file);
 
       const response = await apiService.uploadProfilePicture(file);
 
-      setProfile((prev) => ({ ...prev, profilePicUrl: response.url }));
+      // Update profile with Cloudinary URL
+      setProfile((prev) => ({ ...prev, profilePicUrl: response.profilePicUrl || response.url }));
       setSuccess("Profile picture updated!");
     } catch (err) {
+      console.error('Upload error:', err);
       setError("Failed to upload image");
     } finally {
       setUploadingImage(false);
@@ -140,10 +212,6 @@ export default function ProfilePage() {
   const [removingAccountId, setRemovingAccountId] = useState(null);
 
   const handleRemoveAccount = async (accountId, bankName) => {
-    if (!confirm(`Are you sure you want to remove ${bankName}?`)) {
-      return;
-    }
-
     try {
       setRemovingAccountId(accountId);
       await apiService.deleteAccount(accountId);
@@ -184,7 +252,12 @@ export default function ProfilePage() {
             {/* Upload Button */}
             <label className="absolute bottom-0 right-0 bg-yellow-400 p-3 rounded-full cursor-pointer shadow-lg hover:bg-yellow-500 transition">
               <Camera className="w-5 h-5 text-purple-900" />
-              <input type="file" className="hidden" onChange={handleImageUpload} />
+              <input 
+                type="file" 
+                className="hidden" 
+                accept="image/*"
+                onChange={handleImageUpload} 
+              />
             </label>
 
             {uploadingImage && (
@@ -355,6 +428,108 @@ export default function ProfilePage() {
           {loading ? 'Adding...' : 'Add Bank Account'}
         </button>
       </div>
+
+      {/* Settings Section */}
+      <div className="bg-white/95 rounded-3xl shadow-2xl p-8 border border-white/20 profile-card mt-8">
+        <h2 className="text-2xl font-black mb-6">Settings</h2>
+        
+        <div className="space-y-6">
+          {/* Dark Mode */}
+          <div className="flex items-center justify-between py-4 border-b">
+            <div className="flex items-center gap-4">
+              <Palette className="text-purple-600 w-6 h-6" />
+              <div>
+                <h3 className="font-bold">Dark Mode</h3>
+                <p className="text-sm text-gray-600">Enable dark theme</p>
+              </div>
+            </div>
+            <SwitchToggle
+              value={darkMode}
+              onChange={(v) => handleSettingChange("darkMode", v)}
+            />
+          </div>
+
+          {/* Language */}
+          <div className="flex items-center justify-between py-4 border-b">
+            <div className="flex items-center gap-4">
+              <Globe className="text-purple-600 w-6 h-6" />
+              <div>
+                <h3 className="font-bold">Language</h3>
+                <p className="text-sm text-gray-600">
+                  Current: {languages.find(l => l.code === settings.language)?.name}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowLanguageModal(true)}
+              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition"
+            >
+              Change
+            </button>
+          </div>
+
+          {/* Forgot Password */}
+          <div className="flex items-center justify-between py-4">
+            <div className="flex items-center gap-4">
+              <ShieldCheck className="text-purple-600 w-6 h-6" />
+              <div>
+                <h3 className="font-bold">Password</h3>
+                <p className="text-sm text-gray-600">Reset your account password</p>
+              </div>
+            </div>
+            <button
+              onClick={handleForgotPassword}
+              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition"
+            >
+              Reset Password
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      {/* Language Selection Modal */}
+      {showLanguageModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-96">
+            <h3 className="text-xl font-bold mb-4">Select Language</h3>
+            <div className="space-y-2">
+              {languages.map((lang) => (
+                <button
+                  key={lang.code}
+                  onClick={() => handleLanguageChange(lang.code)}
+                  className={`w-full text-left p-3 rounded-lg transition ${
+                    settings.language === lang.code
+                      ? 'bg-purple-600 text-white'
+                      : 'hover:bg-gray-100 text-gray-900'
+                  }`}
+                >
+                  {lang.name}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setShowLanguageModal(false)}
+              className="mt-4 w-full py-2 rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300 transition"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function SwitchToggle({ value, onChange }) {
+  return (
+    <label className="relative inline-flex items-center cursor-pointer">
+      <input
+        type="checkbox"
+        checked={value}
+        onChange={(e) => onChange(e.target.checked)}
+        className="sr-only peer"
+      />
+      <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-purple-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:bg-white after:rounded-full after:transition-all"></div>
+    </label>
   );
 }
