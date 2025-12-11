@@ -3,7 +3,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   Wallet, Menu, X, LogOut, Bell,
   Home, Receipt, BarChart3, PieChart,
-  Calendar, Target, TrendingUp, Upload
+  Calendar, Target, TrendingUp, Upload, User
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
@@ -11,13 +11,14 @@ import ThemeToggle from './ThemeToggle'
 
 // NAVIGATION LINK DATA
 const navItems = [
+  { path: '/app/dashboard', label: 'Dashboard', icon: BarChart3 },
   { path: '/app/transactions', label: 'Transactions', icon: Receipt },
-  { path: '/app/analytics', label: 'Dashboard', icon: BarChart3 },
   { path: '/app/categories', label: 'Categories', icon: PieChart },
   { path: '/app/recurring', label: 'Recurring', icon: Calendar },
   { path: '/app/goals', label: 'Goals', icon: Target },
   { path: '/app/insights', label: 'AI Insights', icon: TrendingUp },
   { path: '/app/import', label: 'Import', icon: Upload },
+  { path: '/app/profile', label: 'Profile', icon: User },
   { path: 'logout', label: 'Logout', icon: LogOut, isLogout: true },
 ]
 
@@ -137,7 +138,7 @@ export default function DashboardLayout() {
             </div>
             <div>
               <h1 className={`text-4xl font-black bg-gradient-to-r from-purple-600 to-cyan-600 bg-clip-text text-transparent`}>
-                {navItems.find(n => n.path === location.pathname)?.label || 'Import'}
+                {navItems.find(n => n.path === location.pathname)?.label || 'Profile'}
               </h1>
               <p className={`text-sm font-medium transition-colors ${
                 darkMode ? 'text-gray-400' : 'text-gray-600'
@@ -156,17 +157,17 @@ export default function DashboardLayout() {
               onClick={() => navigate('/app/profile')}
               className="flex items-center gap-3 bg-gradient-to-r from-purple-200 to-cyan-200 px-4 py-2 rounded-xl shadow hover:from-purple-300 hover:to-cyan-300 transition-all"
             >
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-cyan-600 rounded-full flex items-center justify-center text-white font-black overflow-hidden">
-                {user?.profilePicUrl ? (
-                  <img 
-                    src={user.profilePicUrl} 
-                    alt="Profile" 
-                    className="w-full h-full object-cover rounded-full"
-                  />
-                ) : (
-                  <span>{user?.name?.[0]?.toUpperCase() || 'U'}</span>
-                )}
-              </div>
+              {(user?.profilePicture || user?.profilePicUrl) ? (
+                <img 
+                  src={user.profilePicture || user.profilePicUrl} 
+                  alt={user.name}
+                  className="w-10 h-10 rounded-full object-cover border-2 border-white/20"
+                />
+              ) : (
+                <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-cyan-600 rounded-full flex items-center justify-center text-white font-black">
+                  {user?.name?.[0]?.toUpperCase() || 'U'}
+                </div>
+              )}
               <div>
                 <div className={`font-black transition-colors ${
                   darkMode ? 'text-white' : 'text-gray-900'

@@ -65,10 +65,22 @@ export function AuthProvider({ children }) {
       localStorage.setItem('loginTime', Date.now().toString())
       
       // Create user object from login response
-      const user = {
+      let user = {
         userId: response.userId,
         email: response.email || email,
         name: response.name || email.split('@')[0]
+      }
+      
+      // Try to fetch full profile data including profile picture
+      try {
+        const profileData = await apiService.getUserProfile()
+        user = {
+          ...user,
+          ...profileData,
+          profilePicture: profileData.profilePicture
+        }
+      } catch (profileError) {
+        console.log('Could not fetch profile data:', profileError)
       }
       
       localStorage.setItem('user', JSON.stringify(user))
@@ -105,8 +117,14 @@ export function AuthProvider({ children }) {
     }
   }
 
+  const updateUser = (updatedUserData) => {
+    const updatedUser = { ...user, ...updatedUserData }
+    setUser(updatedUser)
+    localStorage.setItem('user', JSON.stringify(updatedUser))
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   )

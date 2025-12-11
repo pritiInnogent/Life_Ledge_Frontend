@@ -1,50 +1,50 @@
 import React, { useState, useEffect } from 'react'
-import { Calendar, Plus, DollarSign, Clock, AlertCircle, CheckCircle2, Repeat, CreditCard, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, DollarSign, Clock, AlertCircle, CheckCircle2, Repeat, CreditCard, Trash2, Edit } from 'lucide-react'
 import ApiService from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
+import DownloadButton from '../components/DownloadButton'
 
 const RecurringCard = ({ recurring, onDelete, onEdit }) => {
   const nextPayment = new Date(recurring.nextPayment)
   const daysUntilNext = Math.ceil((nextPayment - new Date()) / (1000 * 60 * 60 * 24))
   const isOverdue = daysUntilNext < 0
-  const isDueSoon = daysUntilNext <= 3 && daysUntilNext >= 0
+  const isDueSoon = daysUntilNext <= 7 && daysUntilNext >= 0
   
   const getStatusColor = () => {
-    if (isOverdue) return 'text-red-600'
-    if (isDueSoon) return 'text-yellow-600'
-    return 'text-green-600'
+    if (isOverdue) return 'bg-red-100 text-red-700'
+    if (isDueSoon) return 'bg-yellow-100 text-yellow-700'
+    return 'bg-green-100 text-green-700'
   }
   
-  const getStatusIcon = () => {
-    if (isOverdue) return <AlertCircle className="w-5 h-5 text-red-600" />
-    if (isDueSoon) return <Clock className="w-5 h-5 text-yellow-600" />
-    return <CheckCircle2 className="w-5 h-5 text-green-600" />
+  const getStatusText = () => {
+    if (isOverdue) return `Overdue ${Math.abs(daysUntilNext)}d`
+    if (isDueSoon) return `Due in ${daysUntilNext}d`
+    return `${daysUntilNext}d left`
   }
   
   return (
-    <div className="bg-white rounded-2xl p-6 shadow hover:shadow-lg transition-shadow">
+    <div className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100">
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-            <CreditCard className="w-6 h-6 text-purple-600" />
+          <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl flex items-center justify-center">
+            <Repeat className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h3 className="font-black text-lg">{recurring.merchant || recurring.name || 'Unnamed Subscription'}</h3>
-            <p className="text-sm text-gray-600">{recurring.category || 'No Category'}</p>
+            <h3 className="font-bold text-lg text-gray-900">{recurring.name || 'Recurring Payment'}</h3>
+            <p className="text-sm text-gray-600">{recurring.category || 'General'}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {getStatusIcon()}
           <button 
             onClick={() => onEdit(recurring)}
-            className="text-gray-400 hover:text-blue-600 transition-colors"
+            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
             title="Edit"
           >
-            <Calendar className="w-4 h-4" />
+            <Edit className="w-4 h-4" />
           </button>
           <button 
             onClick={() => onDelete(recurring.id)}
-            className="text-gray-400 hover:text-red-600 transition-colors"
+            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
             title="Delete"
           >
             <Trash2 className="w-4 h-4" />
@@ -52,32 +52,26 @@ const RecurringCard = ({ recurring, onDelete, onEdit }) => {
         </div>
       </div>
       
-      <div className="space-y-3">
-        <div className="flex justify-between items-center">
-          <span className="text-sm font-bold text-gray-600">Amount</span>
-          <span className="text-lg font-black text-gray-900">
+      <div className="space-y-4">
+        <div className="bg-gray-50 rounded-lg p-4">
+          <div className="text-2xl font-bold text-gray-900 mb-1">
             ₹{(recurring.amount || 0).toLocaleString()}
-          </span>
+          </div>
+          <div className="text-sm text-gray-600 capitalize">
+            {recurring.frequency || 'monthly'} payment
+          </div>
         </div>
         
-        <div className="flex justify-between items-center">
-          <span className="text-sm font-bold text-gray-600">Frequency</span>
-          <span className="text-sm font-semibold capitalize">{recurring.frequency || 'monthly'}</span>
-        </div>
-        
-        <div className="flex justify-between items-center">
-          <span className="text-sm font-bold text-gray-600">Next Payment</span>
-          <span className={`text-sm font-semibold ${getStatusColor()}`}>
-            {nextPayment.toLocaleDateString()}
-          </span>
-        </div>
-        
-        <div className="pt-2 border-t">
-          <span className={`text-xs font-bold ${getStatusColor()}`}>
-            {isOverdue ? `Overdue by ${Math.abs(daysUntilNext)} days` :
-             isDueSoon ? `Due in ${daysUntilNext} days` :
-             `${daysUntilNext} days remaining`}
-          </span>
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-gray-600">Next Payment</span>
+          <div className="text-right">
+            <div className="text-sm font-semibold text-gray-900">
+              {nextPayment.toLocaleDateString()}
+            </div>
+            <span className={`text-xs px-2 py-1 rounded-full font-semibold ${getStatusColor()}`}>
+              {getStatusText()}
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -247,107 +241,7 @@ const RecurringForm = ({ recurring, onSave, onCancel }) => {
   )
 }
 
-const CalendarView = ({ subscriptions }) => {
-  const [currentDate, setCurrentDate] = useState(new Date())
-  
-  const getDaysInMonth = (date) => {
-    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
-  }
-  
-  const getFirstDayOfMonth = (date) => {
-    return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
-  }
-  
-  const getPaymentsForDate = (date) => {
-    const dateStr = date.toISOString().split('T')[0]
-    return subscriptions.filter(sub => sub.nextPayment === dateStr)
-  }
-  
-  const navigateMonth = (direction) => {
-    setCurrentDate(prev => {
-      const newDate = new Date(prev)
-      newDate.setMonth(prev.getMonth() + direction)
-      return newDate
-    })
-  }
-  
-  const daysInMonth = getDaysInMonth(currentDate)
-  const firstDay = getFirstDayOfMonth(currentDate)
-  const monthYear = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-  
-  return (
-    <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-8 shadow-xl border border-white/20">
-      <div className="flex items-center justify-between mb-8">
-        <h3 className="text-3xl font-black bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">Payment Calendar</h3>
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigateMonth(-1)}
-            className="p-3 hover:bg-purple-100 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
-          >
-            <ChevronLeft className="w-5 h-5 text-purple-600" />
-          </button>
-          <span className="font-black text-xl text-gray-800 px-4">{monthYear}</span>
-          <button
-            onClick={() => navigateMonth(1)}
-            className="p-3 hover:bg-purple-100 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
-          >
-            <ChevronRight className="w-5 h-5 text-purple-600" />
-          </button>
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-7 gap-2 mb-4">
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-          <div key={day} className="p-3 text-center text-sm font-black text-gray-700 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg">
-            {day}
-          </div>
-        ))}
-      </div>
-      
-      <div className="grid grid-cols-7 gap-2">
-        {Array.from({ length: firstDay }, (_, i) => (
-          <div key={`empty-${i}`} className="p-3 h-24"></div>
-        ))}
-        
-        {Array.from({ length: daysInMonth }, (_, i) => {
-          const day = i + 1
-          const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-          const payments = getPaymentsForDate(date)
-          const isToday = date.toDateString() === new Date().toDateString()
-          
-          return (
-            <div
-              key={day}
-              className={`p-2 h-20 border rounded-lg transition-colors ${
-                isToday ? 'bg-purple-100 border-purple-300' : 'border-gray-200 hover:bg-gray-50'
-              }`}
-            >
-              <div className={`text-sm font-medium mb-1 ${
-                isToday ? 'text-purple-700' : 'text-gray-700'
-              }`}>
-                {day}
-              </div>
-              <div className="space-y-1">
-                {payments.slice(0, 2).map(payment => (
-                  <div
-                    key={payment.id}
-                    className="text-xs bg-purple-600 text-white px-1 py-0.5 rounded truncate"
-                    title={`${payment.name} - ₹${payment.amount}`}
-                  >
-                    {payment.name}
-                  </div>
-                ))}
-                {payments.length > 2 && (
-                  <div className="text-xs text-gray-500">+{payments.length - 2} more</div>
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
+
 
 export default function RecurringPage() {
   const { user } = useAuth()
@@ -365,6 +259,12 @@ export default function RecurringPage() {
     loadSubscriptions()
     loadAccounts()
   }, [])
+  
+  useEffect(() => {
+    if (user?.userId) {
+      loadSubscriptions()
+    }
+  }, [accountFilter, user])
 
   const loadAccounts = async () => {
     try {
@@ -380,40 +280,26 @@ export default function RecurringPage() {
       setLoading(true)
       setError(null)
       
-      // Get from localStorage or use demo data
-      const saved = localStorage.getItem('recurringPayments')
-      if (saved) {
-        setSubscriptions(JSON.parse(saved))
+      let data
+      if (accountFilter === 'all') {
+        data = await ApiService.getRecurringPayments()
       } else {
-        const demoData = [
-          {
-            id: 1,
-            name: 'Netflix',
-            category: 'Entertainment',
-            amount: 649,
-            frequency: 'monthly',
-            nextPayment: '2024-12-15'
-          },
-          {
-            id: 2,
-            name: 'Spotify Premium',
-            category: 'Music',
-            amount: 119,
-            frequency: 'monthly',
-            nextPayment: '2024-12-20'
-          },
-          {
-            id: 3,
-            name: 'Amazon Prime',
-            category: 'Shopping',
-            amount: 1499,
-            frequency: 'yearly',
-            nextPayment: '2025-03-15'
-          }
-        ]
-        setSubscriptions(demoData)
-        localStorage.setItem('recurringPayments', JSON.stringify(demoData))
+        data = await ApiService.getRecurringPatternsByAccount(accountFilter)
       }
+      
+      const recurringArray = Array.isArray(data) ? data : []
+      
+      // Map backend data to frontend format
+      const mappedData = recurringArray.map(item => ({
+        id: item.id,
+        name: item.merchant || item.description || 'Recurring Payment',
+        category: item.category || 'General',
+        amount: item.amount || 0,
+        frequency: item.frequency?.toLowerCase() || 'monthly',
+        nextPayment: item.nextPaymentDate || item.nextPayment
+      }))
+      
+      setSubscriptions(mappedData)
     } catch (err) {
       console.error('Error loading subscriptions:', err)
       setError(err.message || 'Failed to load recurring payments')
@@ -427,20 +313,21 @@ export default function RecurringPage() {
     try {
       setError(null)
       
-      let updatedSubs
-      if (subData.id) {
-        // Update existing
-        updatedSubs = subscriptions.map(sub => 
-          sub.id === subData.id ? subData : sub
-        )
-      } else {
-        // Add new
-        const newSub = { ...subData, id: Date.now() }
-        updatedSubs = [...subscriptions, newSub]
+      const recurringData = {
+        merchant: subData.name,
+        category: subData.category,
+        amount: subData.amount,
+        frequency: subData.frequency.toUpperCase(),
+        nextPaymentDate: subData.nextPayment
       }
       
-      setSubscriptions(updatedSubs)
-      localStorage.setItem('recurringPayments', JSON.stringify(updatedSubs))
+      if (subData.id) {
+        await ApiService.updateRecurringPattern(subData.id, recurringData)
+      } else {
+        await ApiService.createRecurringPattern(recurringData)
+      }
+      
+      await loadSubscriptions()
       setShowForm(false)
       setEditingSubscription(null)
     } catch (err) {
@@ -453,9 +340,8 @@ export default function RecurringPage() {
     if (!confirm('Are you sure you want to delete this subscription?')) return
     
     try {
-      const updatedSubs = subscriptions.filter(sub => sub.id !== subId)
-      setSubscriptions(updatedSubs)
-      localStorage.setItem('recurringPayments', JSON.stringify(updatedSubs))
+      await ApiService.deleteRecurringPattern(subId)
+      await loadSubscriptions()
     } catch (err) {
       console.error('Error deleting subscription:', err)
       setError(err.message || 'Failed to delete subscription')
@@ -505,81 +391,127 @@ export default function RecurringPage() {
   }
   
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-6 space-y-8">
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Recurring Payments</h1>
+          <p className="text-gray-600">Manage your subscription and recurring transactions</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <DownloadButton targetId="recurring-content" filename="recurring-payments" />
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-2 bg-purple-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-purple-700 transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            Add Payment
+          </button>
+        </div>
+      </div>
+
       {error && (
-        <div className="bg-red-50/80 backdrop-blur-sm border border-red-200 rounded-2xl p-4 shadow-lg animate-slide-up">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <p className="text-red-800 font-semibold">Error: {error}</p>
         </div>
       )}
-      
-      <div className="flex items-center justify-between mb-8 animate-fade-in">
-        <div>
-          <label className="block text-sm font-medium text-gray-600 mb-2">Bank Account</label>
-          <select
-            value={accountFilter}
-            onChange={(e) => setAccountFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white shadow-sm"
-          >
-            <option value="all">All Accounts</option>
-            {accounts.map((account) => (
-              <option key={account.id} value={account.id}>
-                {account.bankName} ••••{account.last4Digits}
-              </option>
-            ))}
-          </select>
-        </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-        >
-          <Plus className="w-5 h-5" />
-          Add Subscription
-        </button>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-300 animate-slide-up">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-3 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg">
-              <Repeat className="w-6 h-6 text-white" />
-            </div>
-            <span className="font-bold text-gray-700">Total Subscriptions</span>
-          </div>
-          <div className="text-3xl font-black text-gray-900">{subscriptions.length}</div>
-        </div>
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-300 animate-slide-up" style={{animationDelay: '0.1s'}}>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-3 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 shadow-lg">
-              <DollarSign className="w-6 h-6 text-white" />
-            </div>
-            <span className="font-bold text-gray-700">Monthly Cost</span>
-          </div>
-          <div className="text-3xl font-black bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">₹{totalMonthly.toLocaleString()}</div>
-        </div>
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-300 animate-slide-up" style={{animationDelay: '0.2s'}}>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-3 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-600 shadow-lg">
-              <Clock className="w-6 h-6 text-white" />
-            </div>
-            <span className="font-bold text-gray-700">Due Soon</span>
-          </div>
-          <div className="text-3xl font-black bg-gradient-to-r from-yellow-600 to-orange-600 bg-clip-text text-transparent">{dueSoon}</div>
-        </div>
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-300 animate-slide-up" style={{animationDelay: '0.3s'}}>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-3 rounded-xl bg-gradient-to-br from-red-500 to-pink-600 shadow-lg">
-              <AlertCircle className="w-6 h-6 text-white" />
-            </div>
-            <span className="font-bold text-gray-700">Overdue</span>
-          </div>
-          <div className="text-3xl font-black bg-gradient-to-r from-red-600 to-pink-600 bg-clip-text text-transparent">{overdue}</div>
-        </div>
-      </div>
-      
 
-      
-      <div className="animate-slide-up" style={{animationDelay: '0.4s'}}>
-        <CalendarView subscriptions={subscriptions} />
+      {/* Filters */}
+      <div className="bg-white rounded-2xl p-6 shadow">
+        <div className="flex items-center gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Bank Account</label>
+            <select
+              value={accountFilter}
+              onChange={(e) => setAccountFilter(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+            >
+              <option value="all">All Accounts</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.bankName} ••••{account.last4Digits}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Filter</label>
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+            >
+              <option value="all">All Payments</option>
+              <option value="due-soon">Due Soon</option>
+              <option value="overdue">Overdue</option>
+              <option value="monthly">Monthly</option>
+              <option value="yearly">Yearly</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div id="recurring-content" className="space-y-6">
+        {/* Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="bg-white rounded-2xl p-6 shadow">
+            <div className="flex items-center gap-3 mb-2">
+              <Repeat className="w-6 h-6 text-purple-600" />
+              <span className="font-bold text-gray-700">Total</span>
+            </div>
+            <div className="text-2xl font-bold text-gray-900">{subscriptions.length}</div>
+          </div>
+          <div className="bg-white rounded-2xl p-6 shadow">
+            <div className="flex items-center gap-3 mb-2">
+              <DollarSign className="w-6 h-6 text-green-600" />
+              <span className="font-bold text-gray-700">Monthly Cost</span>
+            </div>
+            <div className="text-2xl font-bold text-green-600">₹{totalMonthly.toLocaleString()}</div>
+          </div>
+          <div className="bg-white rounded-2xl p-6 shadow">
+            <div className="flex items-center gap-3 mb-2">
+              <Clock className="w-6 h-6 text-yellow-600" />
+              <span className="font-bold text-gray-700">Due Soon</span>
+            </div>
+            <div className="text-2xl font-bold text-yellow-600">{dueSoon}</div>
+          </div>
+          <div className="bg-white rounded-2xl p-6 shadow">
+            <div className="flex items-center gap-3 mb-2">
+              <AlertCircle className="w-6 h-6 text-red-600" />
+              <span className="font-bold text-gray-700">Overdue</span>
+            </div>
+            <div className="text-2xl font-bold text-red-600">{overdue}</div>
+          </div>
+        </div>
+
+        {/* Recurring Payments Grid */}
+        {filteredSubscriptions.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredSubscriptions.map(subscription => (
+              <RecurringCard 
+                key={subscription.id} 
+                recurring={subscription} 
+                onDelete={deleteSubscription}
+                onEdit={(sub) => {
+                  setEditingSubscription(sub)
+                  setShowForm(true)
+                }}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl p-12 shadow text-center">
+            <Repeat className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-gray-600 mb-2">No Recurring Payments</h3>
+            <p className="text-gray-500 mb-6">Add your first recurring payment to start tracking</p>
+            <button
+              onClick={() => setShowForm(true)}
+              className="bg-purple-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-purple-700 transition-colors"
+            >
+              Add Payment
+            </button>
+          </div>
+        )}
       </div>
       
       {showForm && (

@@ -222,6 +222,7 @@ export default function ImportPage() {
         date: manualTransaction.date,
         merchant: manualTransaction.merchant,
         amount: amount,
+        typeTransaction: manualTransaction.typeTransaction.toUpperCase(),
         categoryId: parseInt(manualTransaction.categoryId),
         bankAccountId: selectedAccountId,
         notes: manualTransaction.notes || "",
@@ -229,6 +230,7 @@ export default function ImportPage() {
         anomaly: manualTransaction.anomaly,
       };
 
+      console.log('Form state before submit:', manualTransaction);
       console.log('Submitting transaction:', transactionData);
       const response = await apiService.addTransaction(transactionData);
       console.log('Transaction response:', response);

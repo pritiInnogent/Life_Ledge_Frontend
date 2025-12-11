@@ -8,6 +8,7 @@ class ApiService {
     this.api = axios.create({
       baseURL: API_BASE_URL,
       headers: { "Content-Type": "application/json" },
+      withCredentials: true
     });
 
     // Add token automatically
@@ -268,7 +269,7 @@ async getTransactions(bankAccountId = null) {
 
   async getTransactionsByMonth(month, year, bankAccountId = null) {
     const params = { month, year };
-    if (bankAccountId) params.bankAccountId = bankAccountId;
+    if (bankAccountId && bankAccountId !== 'all') params.bankAccountId = bankAccountId;
     return await this.api.get("/transactions/month", { params });
   }
 
@@ -333,6 +334,8 @@ async getTransactions(bankAccountId = null) {
       category: goalData.category,
       targetAmount: goalData.targetAmount,
       currentAmount: goalData.currentAmount || 0,
+      startDate: goalData.startDate,
+      deadline: goalData.deadline || null,
       type: this.mapGoalType(goalData.type)
     };
     return await this.api.post("/goals", backendData);
@@ -345,6 +348,8 @@ async getTransactions(bankAccountId = null) {
       category: goalData.category,
       targetAmount: goalData.targetAmount,
       currentAmount: goalData.currentAmount || 0,
+      startDate: goalData.startDate,
+      deadline: goalData.deadline || null,
       type: this.mapGoalType(goalData.type)
     };
     return await this.api.put(`/goals/${goalId}`, backendData);
@@ -361,6 +366,11 @@ async getTransactions(bankAccountId = null) {
 
   async deleteGoal(goalId) {
     return await this.api.delete(`/goals/${goalId}`);
+  }
+
+  async deleteAllGoals(accountId = null) {
+    const params = accountId ? { accountId } : {};
+    return await this.api.delete('/goals/all', { params });
   }
 
   async contributeToGoal(goalId, amount) {
@@ -380,11 +390,15 @@ async getTransactions(bankAccountId = null) {
     return await this.api.patch(`/nudges/${nudgeId}/read`);
   }
 
+  async recalculateNudges() {
+    return await this.api.post('/nudges/recalculate');
+  }
+
   // RECURRING PAYMENTS
   async getRecurringPayments() {
     try {
       console.log('Fetching all recurring patterns for user');
-      return await this.api.get('/recurring');
+      return await this.api.get('/recurring/user');
     } catch (error) {
       console.log("Backend unavailable → using mock recurring patterns");
       return [];
@@ -526,26 +540,23 @@ async getTransactions(bankAccountId = null) {
     return await this.api.delete(`/insights/${insightId}`);
   }
 
-  async getCategoryBreakdown() {
-    return await this.api.get("/ai/category-breakdown");
+  async getAnalysisStatus() {
+    return await this.api.get('/ai/status');
   }
 
-  async getRecurringPatterns() {
-    return await this.api.get("/ai/recurring-patterns");
+  async startRecurringAnalysis() {
+    return await this.api.post('/ai/recurring');
   }
 
-  async getAnomalies() {
-    return await this.api.get("/ai/anomalies");
-  }
-
-  async getNudges() {
-    return await this.api.get("/ai/nudges");
+  async getRecurringPatterns(accountId) {
+    return await this.api.get(`/recurring/account/${accountId}`);
   }
 
   // ANALYTICS
-  async getLatestAnalytics() {
+  async getLatestAnalytics(accountId) {
     try {
-      return await this.api.get("/analytics/latest");
+      const url = accountId ? `/analytics/latest?accountId=${accountId}` : "/analytics/latest";
+      return await this.api.get(url);
     } catch (error) {
       console.log('Analytics API not available, using mock data');
       // Import mock data for testing
@@ -607,6 +618,10 @@ async getTransactions(bankAccountId = null) {
 
   async getTransactionsByCategory(categoryId) {
     return await this.api.get(`/categories/by-category/${categoryId}`);
+  }
+
+  async getTransactionsByCategoryId(categoryId) {
+    return await this.api.get(`/transactions/category/${categoryId}`);
   }
 
   async getBankAccountsLast4() {
