@@ -31,7 +31,7 @@ export default function Homepage() {
   const navigate = useNavigate()
 
   const handleGetStarted = () => {
-    if (user) navigate('/app/dashboard')
+    if (user) navigate('/app/analytics')
     else navigate('/register')
   }
 
@@ -62,48 +62,43 @@ export default function Homepage() {
         <div className="hero-section">
           <div className="hero-grid">
             <div className="hero-content">
-              <div className="brand-badge">
-                <div className="brand-icon">
-                  <Wallet className="w-4 h-4 text-white" />
-                </div>
-                <span className="brand-name">LifeLedger</span>
-                <div className="ai-badge">
-                  <Sparkles className="w-3 h-3" />
-                  <span className="ai-badge-text">AI-Powered</span>
+              <div className="flex flex-col sm:flex-row items-center gap-4 mb-6 sm:mb-8">
+                <img src="/logo.png" alt="LifeLedger" className="w-12 h-12 sm:w-16 sm:h-16" />
+                <div className="text-center sm:text-left">
+                  <div className="relative">
+                    <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white">LifeLedger</h1>
+                    <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-gradient-to-r from-purple-400 to-cyan-400 animate-pulse" style={{animation: 'expandWidth 2s ease-in-out infinite'}}></div>
+                  </div>
+                  <div className="flex items-center justify-center sm:justify-start gap-2 mt-1">
+                    <Sparkles className="w-4 h-4 text-purple-600" />
+                    <span className="text-xs sm:text-sm text-purple-600 font-medium">Financial clarity at your fingertips</span>
+                  </div>
                 </div>
               </div>
 
-              <div className="hero-heading">
-                <h1 className="main-title">
-                  Master Your
-                  <span className="gradient-text"> Finances </span>
-                  with AI
-                </h1>
-                <p className="hero-description">
-                  Transform messy transactions into clear insights. Auto-categorize expenses, 
-                  set smart budgets, and make informed financial decisions with our AI-powered platform.
-                </p>
+              <div className="hero-heading text-center sm:text-left">
+                <h2 className="main-title text-2xl sm:text-3xl lg:text-4xl xl:text-5xl">
+                 Your personal 
+                  <span className="gradient-text"> finance </span>
+                 intelligence system.
+                </h2>
               </div>
 
-              <div className="cta-buttons">
-                <button onClick={handleGetStarted} className="primary-btn">
+              <div className="cta-buttons flex justify-center sm:justify-start">
+                <button onClick={handleGetStarted} className="primary-btn w-full sm:w-auto">
                   Get Started Free
-                  <ArrowRight className="w-5 h-5 arrow-icon" />
-                </button>
-                <button onClick={() => navigate('/app/insights')} className="secondary-btn">
-                  <TrendingUp className="w-5 h-5" />
-                  View Demo
+                  <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 arrow-icon" />
                 </button>
               </div>
 
-              <div className="trust-indicators">
+              <div className="trust-indicators flex-col sm:flex-row items-center justify-center sm:justify-start">
                 <div className="trust-item">
                   <Shield className="w-4 h-4" />
-                  <span className="trust-text">Bank-level Security</span>
+                  <span className="trust-text text-xs sm:text-sm">Bank-level Security</span>
                 </div>
                 <div className="trust-item">
                   <Sparkles className="w-4 h-4" />
-                  <span className="trust-text">AI-Powered Insights</span>
+                  <span className="trust-text text-xs sm:text-sm">AI-Powered Insights</span>
                 </div>
               </div>
             </div>
@@ -112,7 +107,10 @@ export default function Homepage() {
               <div className="dashboard-card">
                 <div className="dashboard-content">
                   <div className="dashboard-header">
-                    <h3 className="dashboard-title">Financial Overview</h3>
+                    <div className="flex items-center gap-2">
+                      <img src="/logo.png" alt="LifeLedger" className="w-5 h-5" />
+                      <h3 className="dashboard-title">Financial Overview</h3>
+                    </div>
                     <div className="live-badge">Live</div>
                   </div>
 
@@ -158,12 +156,9 @@ export default function Homepage() {
         <div className="features-section">
           <div className="features-header">
             <h2 className="features-title">
-              Everything you need to
-              <span className="gradient-text"> succeed financially</span>
+              Key
+              <span className="gradient-text"> Features</span>
             </h2>
-            <p className="features-description">
-              Powerful features designed to simplify your financial life and help you make smarter money decisions.
-            </p>
           </div>
 
           <div className="features-grid">

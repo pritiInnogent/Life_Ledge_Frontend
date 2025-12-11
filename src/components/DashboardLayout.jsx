@@ -3,22 +3,21 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   Wallet, Menu, X, LogOut, Bell,
   Home, Receipt, BarChart3, PieChart,
-  Calendar, Target, TrendingUp, Upload, Settings,
-  CreditCard, Repeat, Brain
+  Calendar, Target, TrendingUp, Upload
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
 // NAVIGATION LINK DATA
 const navItems = [
   { path: '/app/dashboard', label: 'Dashboard', icon: Home },
-  { path: '/app/transactions', label: 'Transactions', icon: CreditCard },
+  { path: '/app/transactions', label: 'Transactions', icon: Receipt },
   { path: '/app/analytics', label: 'Analytics', icon: BarChart3 },
   { path: '/app/categories', label: 'Categories', icon: PieChart },
-  { path: '/app/recurring', label: 'Recurring', icon: Repeat },
+  { path: '/app/recurring', label: 'Recurring', icon: Calendar },
   { path: '/app/goals', label: 'Goals', icon: Target },
-  { path: '/app/insights', label: 'AI Insights', icon: Brain },
+  { path: '/app/insights', label: 'AI Insights', icon: TrendingUp },
   { path: '/app/import', label: 'Import', icon: Upload },
-  { path: '/app/settings', label: 'Settings', icon: Settings },
+  { path: 'logout', label: 'Logout', icon: LogOut, isLogout: true },
 ]
 
 export default function DashboardLayout() {
@@ -47,20 +46,28 @@ export default function DashboardLayout() {
       )}
 
       {/* SIDEBAR */}
-      <aside className="fixed top-0 left-0 h-screen bg-gradient-to-br from-purple-900 to-cyan-900 text-white w-52 shadow-xl border-r border-purple-400/40 overflow-y-auto z-40">
+      <aside
+        className={`
+          fixed top-0 left-0 h-screen 
+          bg-gradient-to-br from-purple-900 to-cyan-900 text-white 
+          w-72 shadow-xl border-r border-purple-400/40 overflow-y-auto
+          transition-transform duration-300 z-50
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        `}
+      >
 
         {/* Close Button - Mobile */}
         <button
           onClick={() => setSidebarOpen(false)}
-          className="md:hidden absolute top-4 right-4 p-2 bg-white/10 rounded-lg"
+          className="md:hidden absolute top-4 right-4 p-2 bg-white/10 rounded-lg z-10"
         >
           <X size={24} className="text-white" />
         </button>
 
-        <div className="p-4">
+        <div className="p-4 min-h-full flex flex-col">
           
           {/* Branding */}
-          <div className="flex items-center gap-2 mb-8 mt-2">
+          <div className="flex items-center gap-2 mb-6 mt-2">
             <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-pink-500 rounded-xl flex items-center justify-center shadow-xl">
               <Wallet className="w-6 h-6 text-white" />
             </div>
@@ -74,54 +81,48 @@ export default function DashboardLayout() {
           </div>
 
           {/* NAVIGATION LINKS */}
-          <nav className="space-y-2">
+          <nav className="space-y-1 flex-1">
             {navItems.map(item => {
               const isActive = location.pathname === item.path
 
-              const IconComponent = item.icon
               return (
                 <button
                   key={item.path}
                   onClick={() => {
-                    navigate(item.path)
+                    if (item.isLogout) {
+                      logout()
+                    } else {
+                      navigate(item.path)
+                    }
                     setSidebarOpen(false) // mobile auto-close
                   }}
                   className={`
-                    w-full flex items-center gap-3 px-3 py-3 rounded-xl font-semibold transition-all
-                    ${isActive
-                      ? 'bg-white/20 shadow-lg text-white scale-105'
+                    w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all text-sm
+                    ${item.isLogout 
+                      ? 'text-red-300 hover:bg-red-500/10 border-t border-white/10 mt-2 pt-4'
+                      : isActive
+                      ? 'bg-white/20 shadow-lg text-white'
                       : 'text-gray-300 hover:bg-white/10 hover:text-white'}
                   `}
                 >
-                  <IconComponent className="w-5 h-5" />
-                  <span className="text-sm">{item.label}</span>
+                  <item.icon className="w-5 h-5" />
+                  <span>{item.label}</span>
                 </button>
               )
             })}
           </nav>
 
-          {/* LOGOUT BUTTON */}
-          <div className="mt-8">
-            <button
-              onClick={logout}
-              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-red-300 hover:bg-red-500/10"
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="text-sm">Logout</span>
-            </button>
-          </div>
-
         </div>
       </aside>
 
       {/* MAIN CONTENT */}
-      <main className="flex-1 overflow-auto ml-52">
+      <main className="flex-1 overflow-auto ml-0 md:ml-72">
 
         {/* HEADER */}
         <header className="bg-white/80 backdrop-blur p-6 border-b shadow-sm flex items-center justify-between">
 
           <div>
-            <h1 className="text-3xl font-black">
+            <h1 className="text-3xl font-black text-gray-900">
               {navItems.find(n => n.path === location.pathname)?.label || 'Dashboard'}
             </h1>
             <p className="text-sm text-gray-600">{new Date().toLocaleDateString()}</p>
@@ -130,6 +131,7 @@ export default function DashboardLayout() {
           {/* Right-side icons */}
           <div className="flex items-center gap-4">
             
+
             {/* User Info */}
             <button 
               onClick={() => navigate('/app/profile')}

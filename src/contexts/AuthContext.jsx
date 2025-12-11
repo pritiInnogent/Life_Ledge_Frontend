@@ -9,7 +9,7 @@ export function AuthProvider({ children }) {
   
   useEffect(() => {
     const token = localStorage.getItem('token')
-    const storedUser = localStorage.getItem('user')
+    const storedUser = localStorage.getItem('lifeledger_user')
     const loginTime = localStorage.getItem('loginTime')
     
     if (token && storedUser && loginTime) {
@@ -32,7 +32,7 @@ export function AuthProvider({ children }) {
 
   const clearAuthData = () => {
     localStorage.removeItem('token')
-    localStorage.removeItem('user')
+    localStorage.removeItem('lifeledger_user')
     localStorage.removeItem('loginTime')
     setUser(null)
   }
@@ -50,7 +50,7 @@ export function AuthProvider({ children }) {
         name: response.name || email.split('@')[0]
       }
       
-      localStorage.setItem('user', JSON.stringify(user))
+      localStorage.setItem('lifeledger_user', JSON.stringify(user))
       setUser(user)
       return user
     } catch (error) {

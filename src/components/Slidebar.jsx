@@ -7,9 +7,8 @@ export default function Sidebar() {
   const pathname = useLocation().pathname;
 
   const navItems = [
-    { path: "/app/dashboard", label: "Dashboard", icon: Home, emoji: "🏠" },
+    { path: "/app/analytics", label: "Dashboard", icon: BarChart3, emoji: "📊" },
     { path: "/app/transactions", label: "Transactions", icon: Receipt, emoji: "💳" },
-    { path: "/app/analytics", label: "Analytics", icon: BarChart3, emoji: "📊" },
     { path: "/app/categories", label: "Categories", icon: PieChart, emoji: "🎨" },
     { path: "/app/recurring", label: "Recurring", icon: Calendar, emoji: "🔄" },
     { path: "/app/goals", label: "Goals", icon: Target, emoji: "🎯" },
@@ -54,9 +53,7 @@ export default function Sidebar() {
 
           {/* Branding */}
           <div className="flex items-center gap-3 mb-10 mt-3">
-            <div className="bg-gradient-to-br from-yellow-400 via-pink-500 to-purple-600 w-14 h-14 rounded-2xl flex items-center justify-center shadow-xl">
-              <Wallet className="w-8 h-8 text-white" />
-            </div>
+            <img src="/logo.png" alt="LifeLedger" className="w-12 h-12" />
             <h1 className="text-3xl font-extrabold bg-gradient-to-r from-yellow-300 to-pink-300 bg-clip-text text-transparent">
               LifeLedger
             </h1>

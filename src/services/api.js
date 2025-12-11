@@ -55,7 +55,7 @@ class ApiService {
 
   logout() {
     localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    localStorage.removeItem("lifeledger_user");
   }
 
   /* ============================================================
@@ -294,6 +294,22 @@ class ApiService {
   // DELETE category
   async deleteCategory(id) {
     return await this.api.delete(`/categories/${id}`);
+  }
+
+  /* ============================================================
+     AI CATEGORIZATION
+     ============================================================ */
+
+  async triggerAiCategorization(userId) {
+    return await this.api.post("/ai/analyze", { userId });
+  }
+
+  /* ============================================================
+     ANALYTICS
+     ============================================================ */
+
+  async getLatestAnalytics() {
+    return await this.api.get("/analytics");
   }
 }
 

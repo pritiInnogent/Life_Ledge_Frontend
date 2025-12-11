@@ -24,7 +24,7 @@ export default function LoginPage() {
       if (isLogin) {
         // 🔥 REAL BACKEND LOGIN
         await login(formData.email, formData.password);
-        navigate("/app/dashboard");
+        navigate("/app/analytics");
       } else {
         // 🔥 REAL BACKEND SIGNUP
         await signup(
