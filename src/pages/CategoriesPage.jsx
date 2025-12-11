@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { ChevronDown, ChevronRight, Plus, X, Edit, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, X, Edit, Trash2, Brain, RefreshCw } from 'lucide-react'
 import apiService from '../services/api'
+import CategoryTransactionsModal from '../components/CategoryTransactionsModal'
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-US', {
@@ -17,8 +18,8 @@ const commonIcons = [
 ]
 
 export default function CategoriesPage() {
-  const [activeFilter, setActiveFilter] = useState('monthly')
-  const [expandedCategory, setExpandedCategory] = useState(null)
+
+
   const [categories, setCategories] = useState([])
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingCategory, setEditingCategory] = useState(null)
@@ -28,10 +29,55 @@ export default function CategoriesPage() {
   const [saving, setSaving] = useState(false)
   const [categoryTransactions, setCategoryTransactions] = useState({})
   const [loadingTransactions, setLoadingTransactions] = useState(null)
+  const [aiCategorizing, setAiCategorizing] = useState(false)
+  const [accounts, setAccounts] = useState([])
+  const [selectedAccount, setSelectedAccount] = useState(null)
+  const [showTransactionsModal, setShowTransactionsModal] = useState(false)
+  const [selectedCategoryForModal, setSelectedCategoryForModal] = useState(null)
 
   useEffect(() => {
+    loadAccounts()
     fetchCategories()
   }, [])
+
+  const loadAccounts = async () => {
+    try {
+      const data = await apiService.getAccounts()
+      setAccounts(data || [])
+      if (data && data.length > 0) {
+        setSelectedAccount(data[0].id)
+      }
+    } catch (err) {
+      console.error('Error loading accounts:', err)
+    }
+  }
+
+  const runAICategorization = async () => {
+    if (!selectedAccount) {
+      setError('Please select an account first')
+      return
+    }
+    
+    try {
+      setAiCategorizing(true)
+      setError('')
+      
+      console.log('Running AI categorization for account:', selectedAccount)
+      await apiService.runCategorization(selectedAccount)
+      
+      // Wait longer and refresh everything
+      setTimeout(async () => {
+        console.log('Refreshing categories and transactions after AI categorization')
+        await fetchCategories() // This will reload categories and their transaction counts
+        setAiCategorizing(false)
+      }, 5000) // Increased timeout to 5 seconds
+      
+    } catch (err) {
+      console.error('Error running AI categorization:', err)
+      setError('Failed to run AI categorization: ' + err.message)
+      setAiCategorizing(false)
+    }
+  }
 
   const fetchCategories = async () => {
     try {
@@ -55,6 +101,19 @@ export default function CategoriesPage() {
       
       console.log('Processed categories:', categories)
       setCategories(categories)
+      
+      // Load transaction counts for each category
+      const transactionCounts = {}
+      for (const category of categories) {
+        try {
+          const transactions = await apiService.getTransactionsByCategory(category.id)
+          transactionCounts[category.id] = transactions
+        } catch (error) {
+          console.error(`Failed to load transactions for category ${category.id}:`, error)
+          transactionCounts[category.id] = []
+        }
+      }
+      setCategoryTransactions(transactionCounts)
     } catch (error) {
       console.error('Error fetching categories:', error)
       console.error('Error details:', error.response || error.message)
@@ -69,36 +128,7 @@ export default function CategoriesPage() {
   }
 
 
-  const toggleCategory = async (index) => {
-    const category = categories[index]
-    
-    if (expandedCategory === index) {
-      setExpandedCategory(null)
-      return
-    }
-    
-    setExpandedCategory(index)
-    
-    // Load transactions for this category if not already loaded
-    if (!categoryTransactions[category.id]) {
-      try {
-        setLoadingTransactions(category.id)
-        const transactions = await apiService.getTransactionsByCategory(category.id)
-        setCategoryTransactions(prev => ({
-          ...prev,
-          [category.id]: transactions
-        }))
-      } catch (error) {
-        console.error('Failed to load transactions:', error)
-        setCategoryTransactions(prev => ({
-          ...prev,
-          [category.id]: []
-        }))
-      } finally {
-        setLoadingTransactions(null)
-      }
-    }
-  }
+
 
   const handleAddCategory = async () => {
     if (!newCategory.name || !newCategory.type) {
@@ -162,164 +192,128 @@ export default function CategoriesPage() {
     }
   }
 
+  const handleSeeMoreTransactions = async (category) => {
+    try {
+      const allTransactions = await apiService.getTransactionsByCategory(category.id)
+      setSelectedCategoryForModal({ ...category, transactions: allTransactions })
+      setShowTransactionsModal(true)
+    } catch (error) {
+      console.error('Failed to load all transactions:', error)
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-white p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        {/* Filter Buttons */}
-        <div className="flex gap-2">
-        {['weekly', 'monthly', 'yearly'].map((filter) => (
-          <button
-            key={filter}
-            onClick={() => setActiveFilter(filter)}
-            className={`px-4 py-2 rounded-lg capitalize transition-all shadow-lg ${
-              activeFilter === filter
-                ? 'bg-gradient-to-r from-purple-600 to-purple-800 text-white shadow-purple-500/30'
-                : 'bg-gradient-to-r from-purple-500 to-purple-700 text-white hover:from-purple-600 hover:to-purple-800 shadow-purple-400/20'
-            }`}
-          >
-            {filter}
-          </button>
-        ))}
-        </div>
-
-        {/* Add Category Button */}
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-800 text-white rounded-lg hover:from-purple-700 hover:to-purple-900 transition-all shadow-lg shadow-purple-500/30"
-        >
-          <Plus className="w-4 h-4" />
-          Add Category
-        </button>
-      </div>
-
-      {/* Error Message */}
+    <div className="space-y-8">
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-          {error}
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-800 font-semibold">Error: {error}</p>
         </div>
       )}
+      
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-black">Categories</h1>
+          <p className="text-gray-600 font-semibold">Organize and analyze your spending patterns</p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={runAICategorization}
+            disabled={aiCategorizing}
+            className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors disabled:opacity-50"
+          >
+            {aiCategorizing ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Brain className="w-5 h-5" />}
+            {aiCategorizing ? 'Categorizing...' : 'AI Categorize'}
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 bg-purple-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-purple-700 transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            Add Category
+          </button>
+        </div>
+      </div>
 
-      {/* Category Cards Grid */}
-      <div className="bg-white rounded-lg p-6 space-y-4">
-        {loading ? (
-          <div className="text-center py-8">Loading categories...</div>
-        ) : categories.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">No categories found</div>
-        ) : categories.map((category, index) => (
-          <div key={index} className="bg-gradient-to-r from-purple-100 to-lavender-100 rounded-lg shadow-md border border-purple-200 overflow-hidden" style={{background: 'linear-gradient(to right, #f3e8ff, #e9d5ff)'}}>
-            {/* Main Category Card */}
-            <div
-              className="p-6 cursor-pointer hover:bg-purple-50 transition-colors"
-              onClick={() => toggleCategory(index)}
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="text-lg font-semibold text-gray-600">Loading categories...</div>
+        </div>
+      ) : categories.length === 0 ? (
+        <div className="bg-white rounded-2xl p-12 shadow text-center">
+          <h3 className="font-black text-xl text-gray-600 mb-2">No Categories Yet</h3>
+          <p className="text-gray-500 mb-6">Create your first category to start organizing transactions</p>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="bg-purple-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-purple-700 transition-colors"
+          >
+            Add Your First Category
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {categories.map((category, index) => (
+            <div 
+              key={index} 
+              className="bg-white rounded-2xl p-6 shadow hover:shadow-lg transition-shadow cursor-pointer"
+              onClick={() => handleSeeMoreTransactions(category)}
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div
-                    className="w-12 h-12 rounded-lg flex items-center justify-center font-bold text-2xl bg-white shadow-lg border border-purple-200"
-                  >
-                    {category.icon ? (
-                      <span className="text-2xl">{category.icon}</span>
-                    ) : (
-                      <span className="text-purple-600">{category.name.charAt(0)}</span>
-                    )}
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                    <span className="text-2xl">{category.icon || category.name.charAt(0)}</span>
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-800">{category.name}</h3>
-                    <p className="text-sm text-gray-600">{category.type || 'Category'}</p>
+                    <h3 className="font-black text-lg">{category.name}</h3>
+                    <p className="text-sm text-gray-600 capitalize">{category.type || 'Category'}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleEditCategory(category)
-                      }}
-                      className="p-2 text-gray-500 hover:text-purple-600 hover:bg-white rounded-lg transition-colors"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleDeleteCategory(category.id)
-                      }}
-                      className="p-2 text-gray-500 hover:text-red-600 hover:bg-white rounded-lg transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                  {expandedCategory === index ? (
-                    <ChevronDown className="w-5 h-5 text-gray-500" />
-                  ) : (
-                    <ChevronRight className="w-5 h-5 text-gray-500" />
-                  )}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleEditCategory(category)
+                    }}
+                    className="text-gray-400 hover:text-purple-600 transition-colors"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDeleteCategory(category.id)
+                    }}
+                    className="text-gray-400 hover:text-red-600 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-bold text-gray-600">Transactions</span>
+                  <span className="text-lg font-black text-gray-900">
+                    {(categoryTransactions[category.id] || []).length}
+                  </span>
+                </div>
+                
+                <div className="pt-2 border-t">
+                  <span className="text-xs font-bold text-purple-600">
+                    Click to view all transactions →
+                  </span>
                 </div>
               </div>
             </div>
-
-            {/* Category Details Dropdown */}
-            {expandedCategory === index && (
-              <div className="border-t bg-white bg-opacity-50">
-                <div className="p-4">
-                  <div className="grid grid-cols-2 gap-4 text-sm mb-4">
-                    <div>
-                      <span className="font-medium text-gray-700">Type:</span>
-                      <span className="ml-2 capitalize">{category.type || 'N/A'}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-700">Icon:</span>
-                      <span className="ml-2 text-lg">{category.icon || 'N/A'}</span>
-                    </div>
-                  </div>
-                  
-                  {/* Transactions Section */}
-                  <div className="mt-4">
-                    <h4 className="font-semibold text-gray-800 mb-3">Recent Transactions</h4>
-                    
-                    {loadingTransactions === category.id ? (
-                      <div className="text-center py-4 text-gray-500">Loading transactions...</div>
-                    ) : (
-                      <div className="space-y-2 max-h-60 overflow-y-auto">
-                        {(categoryTransactions[category.id] || []).length === 0 ? (
-                          <div className="text-center py-4 text-gray-500">No transactions found</div>
-                        ) : (
-                          (categoryTransactions[category.id] || []).slice(0, 5).map((txn, i) => (
-                            <div key={i} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                              <div>
-                                <div className="font-medium text-gray-800">{txn.merchant || 'Unknown'}</div>
-                                <div className="text-sm text-gray-500">{txn.date}</div>
-                              </div>
-                              <div className={`font-semibold ${
-                                txn.typeTransaction === 'debit' ? 'text-red-600' : 'text-green-600'
-                              }`}>
-                                ₹{Number(txn.amount || 0).toLocaleString()}
-                              </div>
-                            </div>
-                          ))
-                        )}
-                        
-                        {(categoryTransactions[category.id] || []).length > 5 && (
-                          <div className="text-center py-2 text-sm text-gray-500">
-                            +{(categoryTransactions[category.id] || []).length - 5} more transactions
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Add Category Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white/95 backdrop-blur-sm rounded-lg p-6 w-96 border border-purple-200">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md mx-4">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">{editingCategory ? 'Edit Category' : 'Add New Category'}</h2>
+              <h2 className="text-xl font-black">{editingCategory ? 'Edit Category' : 'Add New Category'}</h2>
               <button onClick={() => {
                 setShowAddModal(false)
                 setEditingCategory(null)
@@ -329,26 +323,20 @@ export default function CategoriesPage() {
               </button>
             </div>
             
-            {error && (
-              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-                {error}
-              </div>
-            )}
-            
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Name</label>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Name</label>
                 <input
                   type="text"
                   value={newCategory.name}
                   onChange={(e) => setNewCategory({...newCategory, name: e.target.value})}
-                  className="w-full px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full p-3 border border-gray-300 rounded-lg font-semibold"
                   placeholder="Enter category name"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium mb-1">Icon</label>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Icon</label>
                 <div className="grid grid-cols-10 gap-2 mb-3">
                   {commonIcons.map((icon, index) => (
                     <button
@@ -367,17 +355,17 @@ export default function CategoriesPage() {
                   type="text"
                   value={newCategory.icon}
                   onChange={(e) => setNewCategory({...newCategory, icon: e.target.value})}
-                  className="w-full px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full p-3 border border-gray-300 rounded-lg font-semibold"
                   placeholder="Or enter custom icon"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium mb-1">Type</label>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Type</label>
                 <select
                   value={newCategory.type}
                   onChange={(e) => setNewCategory({...newCategory, type: e.target.value})}
-                  className="w-full px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full p-3 border border-gray-300 rounded-lg font-semibold"
                 >
                   <option value="">Select type</option>
                   <option value="expense">Expense</option>
@@ -386,27 +374,39 @@ export default function CategoriesPage() {
               </div>
             </div>
             
-            <div className="flex gap-2 mt-6">
+            <div className="flex gap-3 pt-4">
               <button
                 onClick={() => {
                   setShowAddModal(false)
                   setEditingCategory(null)
                   setNewCategory({ name: '', icon: '', type: '' })
                 }}
-                className="flex-1 px-4 py-2 border border-purple-900 rounded-lg hover:bg-purple-50"
+                className="flex-1 py-3 px-4 border border-gray-300 rounded-lg font-bold text-gray-700 hover:bg-gray-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleAddCategory}
                 disabled={saving}
-                className="flex-1 px-4 py-2 bg-purple-900 text-white rounded-lg hover:bg-purple-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 py-3 px-4 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700"
               >
-                {saving ? 'Saving...' : (editingCategory ? 'Update Category' : 'Add Category')}
+                {saving ? 'Saving...' : (editingCategory ? 'Update' : 'Add')} Category
               </button>
             </div>
           </div>
         </div>
+      )}
+      
+      {/* Transactions Modal */}
+      {showTransactionsModal && selectedCategoryForModal && (
+        <CategoryTransactionsModal
+          category={selectedCategoryForModal}
+          transactions={selectedCategoryForModal.transactions || []}
+          onClose={() => {
+            setShowTransactionsModal(false)
+            setSelectedCategoryForModal(null)
+          }}
+        />
       )}
     </div>
   )

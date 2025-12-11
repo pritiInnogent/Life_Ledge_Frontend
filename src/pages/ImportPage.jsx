@@ -35,14 +35,20 @@ export default function ImportPage() {
     date: "",
     merchant: "",
     amount: "",
+    typeTransaction: "debit",
+    categoryId: "",
     notes: "",
+    recurring: false,
+    anomaly: false,
   });
+  const [categories, setCategories] = useState([]);
 
   // -------------------------------------------
   // LOAD ACCOUNTS
   // -------------------------------------------
   useEffect(() => {
     loadAccounts();
+    loadCategories();
   }, []);
 
   const loadAccounts = async () => {
@@ -53,6 +59,17 @@ export default function ImportPage() {
     } catch (err) {
       console.error("Failed to load accounts:", err);
       showNotification("Failed to load bank accounts", "error");
+    }
+  };
+
+  const loadCategories = async () => {
+    try {
+      const res = await apiService.getCategories();
+      setCategories(res);
+      console.log("Loaded categories:", res);
+    } catch (err) {
+      console.error("Failed to load categories:", err);
+      showNotification("Failed to load categories", "error");
     }
   };
 
@@ -185,27 +202,52 @@ export default function ImportPage() {
       !manualTransaction.date ||
       !manualTransaction.merchant ||
       !manualTransaction.amount ||
+      !manualTransaction.categoryId ||
       !selectedAccountId
     ) {
       showNotification("Please fill all required fields", "error");
       return;
     }
 
+    const amount = parseFloat(manualTransaction.amount);
+    if (isNaN(amount) || amount <= 0) {
+      showNotification("Please enter a valid amount", "error");
+      return;
+    }
+
     try {
       setLoading(true);
 
-      const response = await apiService.addTransaction({
-        ...manualTransaction,
-        amount: parseFloat(manualTransaction.amount),
+      const transactionData = {
+        date: manualTransaction.date,
+        merchant: manualTransaction.merchant,
+        amount: amount,
+        categoryId: parseInt(manualTransaction.categoryId),
         bankAccountId: selectedAccountId,
-      });
+        notes: manualTransaction.notes || "",
+        recurring: manualTransaction.recurring,
+        anomaly: manualTransaction.anomaly,
+      };
+
+      console.log('Submitting transaction:', transactionData);
+      const response = await apiService.addTransaction(transactionData);
+      console.log('Transaction response:', response);
 
       showNotification("Transaction added successfully!", "success");
 
-      setManualTransaction({ date: "", merchant: "", amount: "", notes: "" });
+      setManualTransaction({ 
+        date: "", 
+        merchant: "", 
+        amount: "", 
+        typeTransaction: "debit",
+        categoryId: "",
+        notes: "",
+        recurring: false,
+        anomaly: false,
+      });
       setSelectedAccountId("");
     } catch (err) {
-      console.error(err);
+      console.error('Transaction submission error:', err);
       showNotification(err.message || "Failed to add transaction.", "error");
     } finally {
       setLoading(false);
@@ -349,66 +391,185 @@ export default function ImportPage() {
               </select>
             </div>
 
-            {/* Date + Amount */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Date + Amount + Type */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-bold mb-2">Date *</label>
+                <label className="block text-sm font-bold mb-2 text-gray-700">Date *</label>
                 <input
                   type="date"
                   value={manualTransaction.date}
                   onChange={(e) =>
                     setManualTransaction({ ...manualTransaction, date: e.target.value })
                   }
-                  className="w-full p-3 border rounded-xl"
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold mb-2">Amount *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={manualTransaction.amount}
+                <label className="block text-sm font-bold mb-2 text-gray-700">Amount *</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-semibold">₹</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    value={manualTransaction.amount}
+                    onChange={(e) =>
+                      setManualTransaction({ ...manualTransaction, amount: e.target.value })
+                    }
+                    className="w-full p-3 pl-8 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold mb-2 text-gray-700">Transaction Type *</label>
+                <select
+                  value={manualTransaction.typeTransaction}
                   onChange={(e) =>
-                    setManualTransaction({ ...manualTransaction, amount: e.target.value })
+                    setManualTransaction({ ...manualTransaction, typeTransaction: e.target.value })
                   }
-                  className="w-full p-3 border rounded-xl"
-                />
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                >
+                  <option value="debit">💸 Debit (Expense)</option>
+                  <option value="credit">💰 Credit (Income)</option>
+                </select>
               </div>
             </div>
 
-            {/* Merchant */}
-            <div>
-              <label className="block text-sm font-bold mb-2">Merchant *</label>
-              <input
-                type="text"
-                value={manualTransaction.merchant}
-                onChange={(e) =>
-                  setManualTransaction({ ...manualTransaction, merchant: e.target.value })
-                }
-                className="w-full p-3 border rounded-xl"
-              />
+            {/* Merchant + Category */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold mb-2 text-gray-700">Merchant *</label>
+                <input
+                  type="text"
+                  placeholder="e.g., Swiggy, Amazon, Netflix"
+                  value={manualTransaction.merchant}
+                  onChange={(e) =>
+                    setManualTransaction({ ...manualTransaction, merchant: e.target.value })
+                  }
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold mb-2 text-gray-700">Category *</label>
+                <select
+                  value={manualTransaction.categoryId}
+                  onChange={(e) =>
+                    setManualTransaction({ ...manualTransaction, categoryId: e.target.value })
+                  }
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                >
+                  <option value="">-- Select Category --</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Additional Options */}
+            <div className="bg-gray-50 rounded-xl p-4">
+              <h3 className="font-bold text-gray-700 mb-3">Additional Options</h3>
+              <div className="flex flex-wrap gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={manualTransaction.recurring}
+                    onChange={(e) =>
+                      setManualTransaction({ ...manualTransaction, recurring: e.target.checked })
+                    }
+                    className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">🔄 Recurring Transaction</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={manualTransaction.anomaly}
+                    onChange={(e) =>
+                      setManualTransaction({ ...manualTransaction, anomaly: e.target.checked })
+                    }
+                    className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">⚠️ Mark as Anomaly</span>
+                </label>
+              </div>
             </div>
 
             {/* Notes */}
             <div>
-              <label className="block text-sm font-bold mb-2">Notes</label>
+              <label className="block text-sm font-bold mb-2 text-gray-700">Notes</label>
               <textarea
+                placeholder="Add any additional notes (optional)"
                 value={manualTransaction.notes}
                 onChange={(e) =>
                   setManualTransaction({ ...manualTransaction, notes: e.target.value })
                 }
-                className="w-full p-3 border rounded-xl"
+                className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                 rows="3"
               />
             </div>
 
+            {/* Transaction Preview */}
+            {(manualTransaction.amount || manualTransaction.merchant) && (
+              <div className="bg-gradient-to-r from-purple-50 to-cyan-50 rounded-xl p-4 border border-purple-200">
+                <h3 className="font-bold text-purple-800 mb-3 flex items-center gap-2">
+                  👁️ Transaction Preview
+                </h3>
+                <div className="flex justify-between items-center">
+                  <div className="flex-1">
+                    <p className="font-semibold text-gray-800">{manualTransaction.merchant || "Merchant Name"}</p>
+                    <p className="text-sm text-gray-600">{manualTransaction.date || "Date"}</p>
+                    {manualTransaction.categoryId && (
+                      <p className="text-sm text-purple-600">
+                        {categories.find(c => c.id == manualTransaction.categoryId)?.name || "Category"}
+                      </p>
+                    )}
+                    <div className="flex gap-2 mt-1">
+                      {manualTransaction.recurring && (
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">🔄 Recurring</span>
+                      )}
+                      {manualTransaction.anomaly && (
+                        <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full">⚠️ Anomaly</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={`font-bold text-xl ${
+                      manualTransaction.typeTransaction === 'credit' ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {manualTransaction.typeTransaction === 'credit' ? '+' : '-'}₹{manualTransaction.amount || '0.00'}
+                    </p>
+                    <p className={`text-sm capitalize font-medium ${
+                      manualTransaction.typeTransaction === 'credit' ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {manualTransaction.typeTransaction === 'credit' ? '💰 Income' : '💸 Expense'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <button
               onClick={handleManualSubmit}
-              disabled={loading}
-              className="w-full bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-700 hover:to-cyan-700 text-white px-8 py-4 rounded-xl font-bold shadow-lg shadow-purple-600/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={loading || !manualTransaction.date || !manualTransaction.merchant || !manualTransaction.amount || !manualTransaction.categoryId || !selectedAccountId}
+              className="w-full bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-700 hover:to-cyan-700 text-white px-8 py-4 rounded-xl font-bold shadow-lg shadow-purple-600/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02] active:scale-[0.98]"
             >
-              {loading ? "Adding…" : "Add Transaction"}
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Adding Transaction…
+                </span>
+              ) : (
+                <span className="flex items-center justify-center gap-2">
+                  ✨ Add Transaction
+                </span>
+              )}
             </button>
           </div>
         )}

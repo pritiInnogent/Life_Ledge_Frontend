@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Zap, DollarSign, Calendar, Receipt, BarChart3, Target, Activity } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import ApiService from '../services/api'
+import DownloadButton from '../components/DownloadButton'
 
 const StatCard = ({ emoji, value, label, change }) => (
   <div className="bg-white rounded-2xl p-6 shadow">
@@ -76,9 +77,17 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((s, i) => <StatCard key={i} {...s} />)}
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <p className="text-gray-600">Your financial overview</p>
+        </div>
+        <DownloadButton targetId="dashboard-content" filename="dashboard-report" />
       </div>
+      <div id="dashboard-content" className="space-y-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {stats.map((s, i) => <StatCard key={i} {...s} />)}
+        </div>
       <div className="grid md:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-2xl shadow">
           <div className="flex items-center justify-between mb-4">
@@ -116,6 +125,7 @@ export default function DashboardPage() {
         <div className="bg-white p-6 rounded-2xl shadow">
           <h3 className="font-black mb-2">AI Insight Alert! 🤖</h3>
           <p className="text-gray-700 font-semibold">You saved ₹5,200 this month! Keep it up! 🎉</p>
+        </div>
         </div>
       </div>
     </div>

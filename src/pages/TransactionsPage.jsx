@@ -1,14 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { Trash2 } from "lucide-react";
 import apiService from "../services/api";
+import DownloadButton from "../components/DownloadButton";
 import "../styles/TransactionsPage.css";
 
-const DATE_FILTERS = [
-  { key: "10_days", label: "Last 10 Days", days: 10 },
-  { key: "1_month", label: "Last 1 Month", days: 30 },
-  { key: "6_months", label: "Last 6 Months", days: 182 },
-  { key: "1_year", label: "Last 1 Year", days: 365 },
-  { key: "all", label: "All Time", days: null },
+const MONTH_OPTIONS = [
+  { value: "current", label: "Current Month" },
+  { value: "last", label: "Last Month" },
+  { value: "custom", label: "Custom Month" },
+];
+
+const SORT_OPTIONS = [
+  { value: "date_desc", label: "Date (Newest)" },
+  { value: "date_asc", label: "Date (Oldest)" },
+  { value: "amount_desc", label: "Amount (High to Low)" },
+  { value: "amount_asc", label: "Amount (Low to High)" },
 ];
 
 const TYPE_FILTERS = [
@@ -25,8 +31,10 @@ export default function TransactionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [dateFilter, setDateFilter] = useState("10_days");
-  const [typeFilter, setTypeFilter] = useState("all");
+  const [monthFilter, setMonthFilter] = useState("current");
+  const [sortFilter, setSortFilter] = useState("date_desc");
+  const [customMonth, setCustomMonth] = useState(new Date().getMonth() + 1);
+  const [customYear, setCustomYear] = useState(new Date().getFullYear());
   const [deleting, setDeleting] = useState(null);
   const [deletingAll, setDeletingAll] = useState(false);
 
@@ -37,17 +45,17 @@ export default function TransactionsPage() {
   const pageSize = 10;
 
   // reset page when filters change
-  useEffect(() => setPage(1), [selectedAccount, dateFilter, typeFilter]);
+  useEffect(() => setPage(1), [selectedAccount, monthFilter, sortFilter, customMonth, customYear]);
 
   // Load accounts on first render
   useEffect(() => {
     loadAccounts();
   }, []);
 
-  // Reload transactions when account changes
+  // Reload transactions when filters change
   useEffect(() => {
     loadTransactions();
-  }, [selectedAccount]);
+  }, [selectedAccount, monthFilter, sortFilter, customMonth, customYear]);
 
   async function loadAccounts() {
     try {
@@ -61,10 +69,39 @@ export default function TransactionsPage() {
   async function loadTransactions() {
     try {
       setLoading(true);
+      let data;
+      
+      const accountId = selectedAccount !== "all" ? selectedAccount : null;
+      const [sortBy, direction] = sortFilter.split("_");
+      
+      if (monthFilter === "current") {
+        const now = new Date();
+        data = await apiService.getTransactionsByMonth(now.getMonth() + 1, now.getFullYear(), accountId);
+      } else if (monthFilter === "last") {
+        const lastMonth = new Date();
+        lastMonth.setMonth(lastMonth.getMonth() - 1);
+        data = await apiService.getTransactionsByMonth(lastMonth.getMonth() + 1, lastMonth.getFullYear(), accountId);
+      } else if (monthFilter === "custom") {
+        data = await apiService.getTransactionsByMonth(customMonth, customYear, accountId);
+      } else {
+        data = await apiService.getSortedTransactions(sortBy, direction, accountId);
+      }
 
-      const data = await apiService.getTransactions(
-        selectedAccount !== "all" ? selectedAccount : null
-      );
+      // Apply sorting to month-filtered data on frontend if needed
+      if (monthFilter !== "all" && data && Array.isArray(data)) {
+        data.sort((a, b) => {
+          if (sortBy === "date") {
+            const dateA = new Date(a.date);
+            const dateB = new Date(b.date);
+            return direction === "desc" ? dateB - dateA : dateA - dateB;
+          } else if (sortBy === "amount") {
+            const amountA = Number(a.amount);
+            const amountB = Number(b.amount);
+            return direction === "desc" ? amountB - amountA : amountA - amountB;
+          }
+          return 0;
+        });
+      }
 
       setTransactions(Array.isArray(data) ? data : []);
       setError(null);
@@ -76,35 +113,8 @@ export default function TransactionsPage() {
     }
   }
 
-  const computeCutoff = (key) => {
-    const f = DATE_FILTERS.find((d) => d.key === key);
-    if (!f || !f.days) return null;
-
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - f.days);
-    cutoff.setHours(0, 0, 0, 0);
-
-    return cutoff;
-  };
-
-  // FILTER transactions
-  const filtered = useMemo(() => {
-    if (!transactions.length) return [];
-
-    let list = [...transactions];
-    const cutoff = computeCutoff(dateFilter);
-
-    return list.filter((t) => {
-      const txDate = t.date ? new Date(t.date) : null;
-      if (cutoff && txDate && txDate < cutoff) return false;
-
-      const type = t.typeTransaction?.toLowerCase();
-      if (typeFilter === "credit" && type !== "credit") return false;
-      if (typeFilter === "debit" && type !== "debit") return false;
-
-      return true;
-    });
-  }, [transactions, dateFilter, typeFilter]);
+  // Use transactions directly from backend (already filtered)
+  const filtered = transactions;
 
   // -----------------------
   // PAGINATION LOGIC
@@ -147,10 +157,15 @@ export default function TransactionsPage() {
 
   return (
     <div className="p-6">
-      <h1 className="text-3xl font-bold mb-2">Transactions</h1>
-      <p className="text-gray-600 mb-6">View all your recent transactions</p>
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Transactions</h1>
+          <p className="text-gray-600">View all your recent transactions</p>
+        </div>
+        <DownloadButton targetId="transactions-content" filename="transactions-report" />
+      </div>
 
-      <div className="transactions-card p-6 shadow-lg rounded-2xl bg-white">
+      <div id="transactions-content" className="transactions-card p-6 shadow-lg rounded-2xl bg-white">
         <div className="flex justify-between mb-6">
           <div>
             <h2 className="text-xl font-semibold">Transaction History</h2>
@@ -184,24 +199,48 @@ export default function TransactionsPage() {
             </select>
 
             <select
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
+              value={monthFilter}
+              onChange={(e) => setMonthFilter(e.target.value)}
               className="filter-dropdown"
             >
-              {DATE_FILTERS.map((x) => (
-                <option key={x.key} value={x.key}>
+              {MONTH_OPTIONS.map((x) => (
+                <option key={x.value} value={x.value}>
                   {x.label}
                 </option>
               ))}
             </select>
 
+            {monthFilter === "custom" && (
+              <>
+                <select
+                  value={customMonth}
+                  onChange={(e) => setCustomMonth(parseInt(e.target.value))}
+                  className="filter-dropdown"
+                >
+                  {Array.from({length: 12}, (_, i) => (
+                    <option key={i+1} value={i+1}>
+                      {new Date(0, i).toLocaleString('default', { month: 'long' })}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  value={customYear}
+                  onChange={(e) => setCustomYear(parseInt(e.target.value))}
+                  className="filter-dropdown w-20"
+                  min="2020"
+                  max="2030"
+                />
+              </>
+            )}
+
             <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
+              value={sortFilter}
+              onChange={(e) => setSortFilter(e.target.value)}
               className="filter-dropdown"
             >
-              {TYPE_FILTERS.map((x) => (
-                <option key={x.key} value={x.key}>
+              {SORT_OPTIONS.map((x) => (
+                <option key={x.value} value={x.value}>
                   {x.label}
                 </option>
               ))}

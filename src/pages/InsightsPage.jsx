@@ -1,126 +1,102 @@
 import React, { useState, useEffect } from "react";
-import {
-  Brain,
-  DollarSign,
-  Repeat,
-  Eye,
-  Target,
-  AlertTriangle,
-  AlertCircle,
-  Info,
-  CheckCircle,
-} from "lucide-react";
+import { Brain, ChevronDown, RefreshCw, Sparkles, Clock } from "lucide-react";
 import apiService from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
 
 const InsightsPage = () => {
   const { user } = useAuth();
 
-  const [data, setData] = useState(null);
+  const [insights, setInsights] = useState([]);
+  const [selectedInsightIndex, setSelectedInsightIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState(null);
-  const [activeSection, setActiveSection] = useState(null);
+  const [accounts, setAccounts] = useState([]);
+  const [selectedAccount, setSelectedAccount] = useState(null);
+  const [showAccountDropdown, setShowAccountDropdown] = useState(false);
+  const [analysisProgress, setAnalysisProgress] = useState(0);
 
   useEffect(() => {
-    if (user?.userId) loadInsights();
-  }, [user]);
+    loadAccounts();
+  }, []);
+
+  useEffect(() => {
+    if (selectedAccount) loadInsights();
+  }, [selectedAccount]);
+
+  const loadAccounts = async () => {
+    try {
+      const accountsData = await apiService.getAccounts();
+      setAccounts(accountsData || []);
+      if (accountsData && accountsData.length > 0) {
+        setSelectedAccount(accountsData[0]);
+      }
+    } catch (err) {
+      console.error('Error loading accounts:', err);
+    }
+  };
 
   const loadInsights = async () => {
+    if (!selectedAccount?.id) {
+      setError('Please select a valid account');
+      setLoading(false);
+      return;
+    }
+    
     try {
       setLoading(true);
       setError(null);
-
-      // Try to get insights from backend
-      try {
-        await apiService.analyzeFinancialData();
-        const response = await apiService.getLatestInsights();
-        
-        if (response?.insight?.aiText) {
-          const raw = JSON.parse(response.insight.aiText);
-          const mapped = {
-            overall_health: {
-              summary: raw.analysis?.overall_summary || raw.analysis?.overallSummary || "Analysis completed",
-              emoji: raw.analysis?.emoji || "💡",
-              analysis: raw.analysis?.overall_details || raw.analysis?.overallDetails || "",
-            },
-            spending_breakdown: raw.analysis?.categorized || raw.analysis?.spendingBreakdown || [],
-            recurring_patterns: raw.analysis?.recurring || raw.analysis?.recurringPatterns || [],
-            anomalies: raw.analysis?.anomalies || raw.analysis?.detectedAnomalies || [],
-            nudges: raw.analysis?.nudges || raw.analysis?.smartNudges || [],
-          };
-          setData(mapped);
-          return;
-        }
-      } catch (backendError) {
-        console.log("Backend unavailable, using mock insights:", backendError.message);
-      }
-
-      // Fallback to mock data
-      const mockData = {
-        overall_health: {
-          summary: "Your financial health looks good with some areas for improvement",
-          emoji: "📊",
-          analysis: "Based on your spending patterns, you maintain good control over most categories but could optimize entertainment and dining expenses."
-        },
-        spending_breakdown: [
-          { category: "Food & Dining", amount: 12500 },
-          { category: "Transportation", amount: 8200 },
-          { category: "Shopping", amount: 15600 },
-          { category: "Entertainment", amount: 4300 },
-          { category: "Utilities", amount: 6800 }
-        ],
-        recurring_patterns: [
-          { merchant: "Netflix", frequency: "Monthly", amount: 199 },
-          { merchant: "Spotify", frequency: "Monthly", amount: 119 },
-          { merchant: "BSES", frequency: "Monthly", amount: 850 }
-        ],
-        anomalies: [
-          { reason: "Unusual high spending", amount: 5000, category: "Shopping", severity: "medium" },
-          { reason: "Weekend splurge detected", amount: 2500, category: "Entertainment", severity: "low" }
-        ],
-        nudges: [
-          { message: "Consider reducing dining out expenses by 20% this month", tone: "warning" },
-          { message: "Great job staying within your transportation budget!", tone: "positive" },
-          { message: "Your utility bills are consistent and well-managed", tone: "neutral" }
-        ]
-      };
       
-      setData(mockData);
+      console.log('Loading insights for account ID:', selectedAccount.id);
+      const response = await apiService.getInsightsByAccount(selectedAccount.id);
+      
+      if (response?.insights && response.insights.length > 0) {
+        const processedInsights = response.insights.map(insight => {
+          let insightText = insight.aiText || 'No insights available';
+          let emoji = '💡';
+          let tone = 'neutral';
+          
+          // Try to parse JSON if it's a structured response
+          try {
+            const parsed = JSON.parse(insightText);
+            if (parsed.summary?.text) {
+              insightText = parsed.summary.text;
+              emoji = parsed.summary.emoji || '💡';
+              tone = parsed.summary.tone || 'neutral';
+              if (parsed.nudges && parsed.nudges.length > 0) {
+                insightText += '\n\nKey Recommendations:\n';
+                parsed.nudges.forEach((nudge, i) => {
+                  insightText += `${i + 1}. ${nudge.text}\n`;
+                });
+              }
+            }
+          } catch (e) {
+            // If not JSON, use as is
+          }
+          
+          return {
+            ...insight,
+            processedText: insightText,
+            emoji,
+            tone
+          };
+        });
+        
+        setInsights(processedInsights);
+        setSelectedInsightIndex(0);
+      } else {
+        setInsights([]);
+      }
     } catch (err) {
       console.error("Error loading insights:", err);
       setError(err.message);
+      setAiInsight('Failed to load insights. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  // UI helpers
-  const getToneStyle = (tone) => {
-    const styles = {
-      positive: "bg-green-50 border-green-300",
-      warning: "bg-yellow-50 border-yellow-300",
-      neutral: "bg-blue-50 border-blue-300",
-    };
-    return styles[tone] || "bg-gray-50 border-gray-300";
-  };
 
-  const getToneIcon = (tone) => {
-    const icons = {
-      positive: <CheckCircle className="w-5 h-5 text-green-600" />,
-      warning: <AlertTriangle className="w-5 h-5 text-yellow-600" />,
-      neutral: <Info className="w-5 h-5 text-blue-600" />,
-    };
-    return icons[tone] || <Info className="w-5 h-5 text-gray-600" />;
-  };
-
-  const getSeverityIcon = (severity) => {
-    const icons = {
-      high: <AlertTriangle className="w-5 h-5 text-red-600" />,
-      medium: <AlertCircle className="w-5 h-5 text-yellow-600" />,
-      low: <Info className="w-5 h-5 text-blue-600" />,
-    };
-    return icons[severity] || <Info className="w-5 h-5 text-gray-600" />;
-  };
 
   // Loader
   if (loading)
@@ -131,24 +107,122 @@ const InsightsPage = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-3">
-          <Brain className="w-8 h-8 text-purple-600" />
-          <div>
-            <h1 className="text-3xl font-bold">AI Financial Insights</h1>
-            <p className="text-gray-600">
-              Complete analysis of your spending behavior and patterns
-            </p>
+      <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl p-8 text-white mb-8">
+        <div className="flex justify-between items-start">
+          <div className="flex items-center gap-4">
+            <div className="bg-white/20 p-3 rounded-xl">
+              <Brain className="w-8 h-8" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold mb-2">AI Financial Insights</h1>
+              <p className="text-purple-100">
+                Get personalized insights about your spending patterns and financial health
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex gap-3">
+            {/* Account Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowAccountDropdown(!showAccountDropdown)}
+                className="flex items-center gap-2 bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-xl hover:bg-white/30 transition"
+              >
+                {selectedAccount ? `${selectedAccount.bankName} ****${selectedAccount.last4Digits}` : 'Select Account'}
+                <ChevronDown className="w-4 h-4" />
+              </button>
+              
+              {showAccountDropdown && (
+                <div className="absolute top-full mt-2 right-0 bg-white border rounded-xl shadow-lg z-10 min-w-48">
+                  {accounts.map((account) => (
+                    <button
+                      key={account.id}
+                      onClick={() => {
+                        setSelectedAccount(account);
+                        setShowAccountDropdown(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 first:rounded-t-xl last:rounded-b-xl"
+                    >
+                      {account.bankName} ****{account.last4Digits}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            <button
+              data-generate-insights
+              onClick={async () => {
+                if (!selectedAccount?.id) {
+                  setError('Please select a valid account');
+                  return;
+                }
+                try {
+                  setAnalyzing(true);
+                  setError(null);
+                  setAnalysisProgress(0);
+                  
+                  // Simulate progress
+                  const progressInterval = setInterval(() => {
+                    setAnalysisProgress(prev => {
+                      if (prev >= 90) {
+                        clearInterval(progressInterval);
+                        return 90;
+                      }
+                      return prev + 10;
+                    });
+                  }, 300);
+                  
+                  await apiService.runSummaryGeneration(selectedAccount.id);
+                  
+                  clearInterval(progressInterval);
+                  setAnalysisProgress(100);
+                  
+                  setTimeout(() => {
+                    loadInsights();
+                    setAnalyzing(false);
+                    setAnalysisProgress(0);
+                  }, 8000);
+                } catch (error) {
+                  console.error('Analysis failed:', error);
+                  setError(error.message);
+                  setAnalyzing(false);
+                  setAnalysisProgress(0);
+                }
+              }}
+              disabled={analyzing || !selectedAccount?.id}
+              className="flex items-center gap-2 bg-white text-purple-600 px-6 py-2 rounded-xl font-semibold hover:bg-gray-50 transition disabled:opacity-50"
+            >
+              {analyzing ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  Generate Insights
+                </>
+              )}
+            </button>
           </div>
         </div>
-
-        <button
-          onClick={loadInsights}
-          disabled={loading}
-          className="bg-purple-600 text-white px-6 py-2 rounded-xl shadow hover:bg-purple-700 transition"
-        >
-          Re-analyze
-        </button>
+        
+        {/* Progress Bar */}
+        {analyzing && (
+          <div className="mt-6">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm text-purple-100">Analyzing your financial data...</span>
+              <span className="text-sm text-purple-100">{analysisProgress}%</span>
+            </div>
+            <div className="w-full bg-white/20 rounded-full h-2">
+              <div 
+                className="bg-white h-2 rounded-full transition-all duration-300 ease-out"
+                style={{ width: `${analysisProgress}%` }}
+              ></div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Error */}
@@ -158,162 +232,91 @@ const InsightsPage = () => {
         </div>
       )}
 
-      {/* No Data */}
-      {!data && (
-        <div className="text-center py-10 text-gray-500">
-          No insights available.
+      {/* AI Insight */}
+      <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+        <div className="bg-gradient-to-r from-gray-50 to-blue-50 p-6 border-b">
+          <h3 className="text-xl font-bold flex items-center gap-2 text-gray-800">
+            <div className="bg-purple-100 p-2 rounded-lg">
+              <Brain className="w-5 h-5 text-purple-600" />
+            </div>
+            Your Personalized Financial Insight
+          </h3>
+          <p className="text-gray-600 mt-1">AI-powered analysis of your spending patterns and recommendations</p>
         </div>
-      )}
-
-      {/* Data Available */}
-      {data && (
-        <>
-          {/* Overall Financial Health */}
-          <div
-            className="rounded-2xl bg-blue-50 border-2 border-blue-200 p-6 cursor-pointer"
-            onClick={() =>
-              setActiveSection(activeSection === "overall" ? null : "overall")
-            }
-          >
-            <div className="flex items-start gap-3">
-              <div className="text-4xl">{data.overall_health.emoji}</div>
-              <div>
-                <h3 className="text-xl font-bold">Overall Financial Health</h3>
-                <p className="text-blue-900">{data.overall_health.summary}</p>
+        
+        <div className="p-6">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="relative">
+                <div className="w-16 h-16 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
+                <Clock className="w-6 h-6 text-purple-600 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+              </div>
+              <p className="text-gray-600 mt-4 font-medium">Loading your insights...</p>
+              <p className="text-gray-400 text-sm mt-1">This may take a few moments</p>
+            </div>
+          ) : insights.length > 0 ? (
+            <div>
+              {/* Insight Navigation */}
+              {insights.length > 1 && (
+                <div className="flex justify-between items-center mb-4">
+                  <button
+                    onClick={() => setSelectedInsightIndex(Math.max(0, selectedInsightIndex - 1))}
+                    disabled={selectedInsightIndex === 0}
+                    className="px-4 py-2 bg-gray-100 rounded-lg disabled:opacity-50 hover:bg-gray-200 transition"
+                  >
+                    ← Previous
+                  </button>
+                  <span className="text-sm text-gray-600">
+                    {selectedInsightIndex + 1} of {insights.length} insights
+                  </span>
+                  <button
+                    onClick={() => setSelectedInsightIndex(Math.min(insights.length - 1, selectedInsightIndex + 1))}
+                    disabled={selectedInsightIndex === insights.length - 1}
+                    className="px-4 py-2 bg-gray-100 rounded-lg disabled:opacity-50 hover:bg-gray-200 transition"
+                  >
+                    Next →
+                  </button>
+                </div>
+              )}
+              
+              {/* Current Insight */}
+              <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-100">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-2xl">{insights[selectedInsightIndex]?.emoji}</span>
+                  <span className="text-sm text-gray-500">
+                    {new Date(insights[selectedInsightIndex]?.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+                <div className="prose prose-gray max-w-none">
+                  <div className="whitespace-pre-wrap text-gray-800 leading-relaxed text-base">
+                    {insights[selectedInsightIndex]?.processedText}
+                  </div>
+                </div>
               </div>
             </div>
-
-            {activeSection === "overall" && (
-              <div className="mt-4 bg-white p-4 rounded-xl border">
-                {data.overall_health.analysis || "No detailed summary"}
+          ) : (
+            <div className="text-center py-12">
+              <div className="bg-gray-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Brain className="w-10 h-10 text-gray-400" />
               </div>
-            )}
-          </div>
-
-          {/* 2-column grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Spending Breakdown */}
-            <SectionCard
-              title="Spending Breakdown"
-              icon={<DollarSign className="w-6 h-6 text-purple-600" />}
-              activeSection={activeSection}
-              setActiveSection={setActiveSection}
-              id="categories"
-              items={data.spending_breakdown}
-              emptyMessage="No category data available"
-              renderItem={(item) => (
-                <div className="flex justify-between">
-                  <div>{item.category || item.name}</div>
-                  <div>₹{item.amount || item.value}</div>
-                </div>
-              )}
-            />
-
-            {/* Recurring */}
-            <SectionCard
-              title="Recurring Patterns"
-              icon={<Repeat className="w-6 h-6 text-blue-600" />}
-              activeSection={activeSection}
-              setActiveSection={setActiveSection}
-              id="recurring"
-              items={data.recurring_patterns}
-              emptyMessage="No recurring patterns"
-              renderItem={(item) => (
-                <div>
-                  <div className="font-bold">{item.merchant}</div>
-                  <div className="text-sm text-gray-500">{item.frequency}</div>
-                </div>
-              )}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Anomalies */}
-            <SectionCard
-              title="Detected Anomalies"
-              icon={<Eye className="w-6 h-6 text-red-600" />}
-              activeSection={activeSection}
-              setActiveSection={setActiveSection}
-              id="anomalies"
-              items={data.anomalies}
-              emptyMessage="No anomalies found"
-              renderItem={(item) => (
-                <div className="flex gap-2">
-                  {getSeverityIcon(item.severity)}
-                  <div>
-                    <div className="font-semibold">{item.reason}</div>
-                    <div className="text-sm text-gray-500">
-                      ₹{item.amount} — {item.category}
-                    </div>
-                  </div>
-                </div>
-              )}
-            />
-
-            {/* Nudges */}
-            <SectionCard
-              title="Smart Nudges"
-              icon={<Target className="w-6 h-6 text-green-600" />}
-              activeSection={activeSection}
-              setActiveSection={setActiveSection}
-              id="nudges"
-              items={data.nudges}
-              emptyMessage="No nudges"
-              renderItem={(item) => (
-                <div className={`${getToneStyle(item.tone)} p-2 rounded-lg`}>
-                  <div className="flex gap-2 items-start">
-                    {getToneIcon(item.tone)}
-                    <div>{item.message}</div>
-                  </div>
-                </div>
-              )}
-            />
-          </div>
-        </>
-      )}
+              <h4 className="text-lg font-semibold text-gray-700 mb-2">No Insights Available</h4>
+              <p className="text-gray-500 mb-6">Generate AI insights to get personalized financial recommendations</p>
+              <button
+                onClick={() => {
+                  if (selectedAccount?.id) {
+                    document.querySelector('[data-generate-insights]').click();
+                  }
+                }}
+                className="bg-purple-600 text-white px-6 py-2 rounded-xl hover:bg-purple-700 transition"
+              >
+                Generate Your First Insight
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
 
 export default InsightsPage;
-
-/* ---------------------------------------------
-   Reusable Section Component
---------------------------------------------- */
-const SectionCard = ({
-  title,
-  icon,
-  activeSection,
-  setActiveSection,
-  id,
-  items,
-  emptyMessage,
-  renderItem,
-}) => (
-  <div className="bg-white p-6 rounded-2xl shadow-lg">
-    <div
-      onClick={() => setActiveSection(activeSection === id ? null : id)}
-      className="flex justify-between items-center cursor-pointer hover:bg-gray-50 p-2 rounded-lg"
-    >
-      <div className="flex items-center gap-3">
-        {icon}
-        <h3 className="text-lg font-bold">{title}</h3>
-      </div>
-      <span>{activeSection === id ? "▼" : "▶"}</span>
-    </div>
-
-    {activeSection === id && (
-      <div className="mt-3 space-y-3">
-        {items.length === 0 ? (
-          <div className="text-gray-500 text-center py-4">{emptyMessage}</div>
-        ) : (
-          items.map((item, i) => (
-            <div key={i} className="border p-3 rounded-xl">
-              {renderItem(item)}
-            </div>
-          ))
-        )}
-      </div>
-    )}
-  </div>
-);

@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react'
-import { Target, Plus, Calendar, DollarSign, TrendingUp, AlertCircle, CheckCircle2, Clock, Trash2, Lightbulb } from 'lucide-react'
+import { Target, Plus, Calendar, DollarSign, TrendingUp, AlertCircle, CheckCircle2, Clock, Trash2, Lightbulb, Bell, X } from 'lucide-react'
 import ApiService from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
+import DownloadButton from '../components/DownloadButton'
 
-const GoalCard = ({ goal, onDelete }) => {
-  const progress = Math.min((goal.currentAmount / goal.targetAmount) * 100, 100)
-  const daysLeft = Math.ceil((new Date(goal.endDate) - new Date()) / (1000 * 60 * 60 * 24))
+const GoalCard = ({ goal, onDelete, onEdit, onContribute }) => {
+  const currentAmount = Number(goal.currentAmount) || 0
+  const targetAmount = Number(goal.targetAmount) || 1
+  const progress = Math.min((currentAmount / targetAmount) * 100, 100)
+  const endDate = goal.endDate ? new Date(goal.endDate) : new Date()
+  const daysLeft = Math.ceil((endDate - new Date()) / (1000 * 60 * 60 * 24))
   const isOverdue = daysLeft < 0
   const isCompleted = progress >= 100
   
@@ -46,34 +50,43 @@ const GoalCard = ({ goal, onDelete }) => {
       </div>
       
       <div className="mb-4">
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-sm font-medium text-gray-600">Progress</span>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-blue-50 rounded-lg p-3 text-center">
+            <div className="text-lg font-bold text-blue-600">₹{currentAmount.toLocaleString()}</div>
+            <div className="text-xs text-gray-600">Current Amount</div>
+          </div>
+          <div className="bg-purple-50 rounded-lg p-3 text-center">
+            <div className="text-lg font-bold text-purple-600">₹{targetAmount.toLocaleString()}</div>
+            <div className="text-xs text-gray-600">Target Amount</div>
+          </div>
+        </div>
+        <div className="text-center mt-3">
           <span className={`text-sm font-semibold ${getStatusColor()}`}>
-            ₹{goal.currentAmount.toLocaleString()} / ₹{goal.targetAmount.toLocaleString()}
-          </span>
-        </div>
-        <div className="w-full bg-gray-200 rounded-full h-3">
-          <div 
-            className={`h-3 rounded-full transition-all duration-300 ${
-              isCompleted ? 'bg-green-500' : 
-              isOverdue ? 'bg-red-500' : 
-              progress > 70 ? 'bg-yellow-500' : 'bg-blue-500'
-            }`}
-            style={{ width: `${Math.min(progress, 100)}%` }}
-          />
-        </div>
-        <div className="flex justify-between items-center mt-2">
-          <span className="text-xs text-gray-500">{progress.toFixed(1)}% complete</span>
-          <span className="text-xs text-gray-500">
-            {isOverdue ? `${Math.abs(daysLeft)} days overdue` : 
-             isCompleted ? 'Completed!' : 
-             `${daysLeft} days left`}
+            {!goal.endDate ? 'No end date' :
+             isOverdue ? `${Math.abs(daysLeft)} days overdue` : 
+             isCompleted ? 'Goal Completed!' : 
+             `${daysLeft} days remaining`}
           </span>
         </div>
       </div>
       
+      <div className="flex gap-2 mt-4">
+        <button
+          onClick={() => onContribute(goal.id)}
+          className="flex-1 bg-green-600 text-white py-2 px-3 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors"
+        >
+          Add Money
+        </button>
+        <button
+          onClick={() => onEdit(goal)}
+          className="flex-1 bg-blue-600 text-white py-2 px-3 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors"
+        >
+          Edit Goal
+        </button>
+      </div>
+      
       {goal.nudge && (
-        <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mt-3">
           <div className="flex items-center gap-2">
             <Lightbulb className="w-4 h-4 text-purple-600" />
             <p className="text-sm font-semibold text-purple-800">{goal.nudge}</p>
@@ -278,6 +291,7 @@ const GoalForm = ({ goal, onSave, onCancel }) => {
 export default function GoalsPage() {
   const { user } = useAuth()
   const [goals, setGoals] = useState([])
+  const [nudges, setNudges] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showForm, setShowForm] = useState(false)
@@ -287,6 +301,7 @@ export default function GoalsPage() {
   useEffect(() => {
     if (user?.userId) {
       loadGoals()
+      loadNudges()
     }
   }, [user])
 
@@ -302,6 +317,26 @@ export default function GoalsPage() {
       setGoals([])
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadNudges = async () => {
+    try {
+      const data = await ApiService.getUserNudges()
+      setNudges(Array.isArray(data) ? data : [])
+    } catch (err) {
+      console.error('Error loading nudges:', err)
+    }
+  }
+
+  const markNudgeAsRead = async (nudgeId) => {
+    try {
+      await ApiService.markNudgeAsRead(nudgeId)
+      setNudges(nudges.filter(n => n.id !== nudgeId))
+    } catch (err) {
+      console.error('Error marking nudge as read:', err)
+      // Fallback: remove from UI even if API fails
+      setNudges(nudges.filter(n => n.id !== nudgeId))
     }
   }
   
@@ -327,11 +362,30 @@ export default function GoalsPage() {
   }
   
   const deleteGoal = async (goalId) => {
+    if (!confirm('Are you sure you want to delete this goal?')) return
     try {
       await ApiService.deleteGoal(goalId)
       setGoals(goals.filter(g => g.id !== goalId))
     } catch (err) {
       console.error('Error deleting goal:', err)
+      setError(err.message)
+    }
+  }
+  
+  const editGoal = (goal) => {
+    setEditingGoal(goal)
+    setShowForm(true)
+  }
+  
+  const contributeToGoal = async (goalId) => {
+    const amount = prompt('Enter amount to add:')
+    if (!amount || isNaN(amount) || Number(amount) <= 0) return
+    
+    try {
+      await ApiService.contributeToGoal(goalId, Number(amount))
+      await loadGoals() // Reload to get updated amounts
+    } catch (err) {
+      console.error('Error contributing to goal:', err)
       setError(err.message)
     }
   }
@@ -376,14 +430,67 @@ export default function GoalsPage() {
           <h1 className="text-3xl font-black">Financial Goals</h1>
           <p className="text-gray-600 font-semibold">Track your budgets, savings, and spending targets</p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 bg-purple-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-purple-700 transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          New Goal
-        </button>
+        <div className="flex gap-3">
+          <DownloadButton targetId="goals-content" filename="goals-report" />
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-2 bg-purple-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-purple-700 transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            New Goal
+          </button>
+        </div>
       </div>
+      
+      <div id="goals-content" className="space-y-8">
+
+      {/* Nudges Section */}
+      {nudges.length > 0 && (
+        <div className="bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Bell className="w-5 h-5 text-orange-600" />
+              <h3 className="text-lg font-bold text-orange-800">Budget Alerts</h3>
+              <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">{nudges.length}</span>
+            </div>
+            <button
+              onClick={() => setNudges([])}
+              className="text-sm text-orange-600 hover:text-orange-800 font-semibold"
+            >
+              Clear All
+            </button>
+          </div>
+          <div className="space-y-3 max-h-48 overflow-y-auto">
+            {nudges.slice(0, 5).map((nudge) => (
+              <div key={nudge.id} className="bg-white rounded-lg p-4 flex items-start justify-between shadow-sm">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm font-bold text-red-600">{nudge.title}</span>
+                    <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full">{nudge.goalName}</span>
+                  </div>
+                  <p className="text-sm text-gray-700">{nudge.message}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {new Date(nudge.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+                <button
+                  onClick={() => markNudgeAsRead(nudge.id)}
+                  className="text-gray-400 hover:text-red-600 ml-3 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+            {nudges.length > 5 && (
+              <div className="text-center py-2">
+                <span className="text-sm text-orange-600 font-medium">
+                  +{nudges.length - 5} more alerts
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white rounded-2xl p-6 shadow">
@@ -435,7 +542,13 @@ export default function GoalsPage() {
       {filteredGoals.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredGoals.map(goal => (
-            <GoalCard key={goal.id} goal={goal} onDelete={deleteGoal} />
+            <GoalCard 
+              key={goal.id} 
+              goal={goal} 
+              onDelete={deleteGoal}
+              onEdit={editGoal}
+              onContribute={contributeToGoal}
+            />
           ))}
         </div>
       ) : (
@@ -451,6 +564,8 @@ export default function GoalsPage() {
           </button>
         </div>
       )}
+      
+      </div>
       
       {showForm && (
         <GoalForm

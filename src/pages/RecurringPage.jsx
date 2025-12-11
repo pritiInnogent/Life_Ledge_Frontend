@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Calendar, Plus, DollarSign, Clock, AlertCircle, CheckCircle2, Repeat, CreditCard, Trash2 } from 'lucide-react'
+import { Calendar, Plus, DollarSign, Clock, AlertCircle, CheckCircle2, Repeat, CreditCard, Trash2, Brain, RefreshCw } from 'lucide-react'
 import apiService from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -249,21 +249,69 @@ export default function RecurringPage() {
   const [showForm, setShowForm] = useState(false)
   const [editingSubscription, setEditingSubscription] = useState(null)
   const [filter, setFilter] = useState('all')
+  const [aiAnalyzing, setAiAnalyzing] = useState(false)
+  const [accounts, setAccounts] = useState([])
+  const [selectedAccount, setSelectedAccount] = useState(null)
+  
+  useEffect(() => {
+    loadAccounts()
+  }, [])
   
   useEffect(() => {
     loadSubscriptions()
-  }, [])
+  }, [selectedAccount])
+
+  const loadAccounts = async () => {
+    try {
+      const data = await apiService.getAccounts()
+      setAccounts(data || [])
+      if (data && data.length > 0) {
+        setSelectedAccount(data[0].id)
+      }
+    } catch (err) {
+      console.error('Error loading accounts:', err)
+    }
+  }
+
+  const runAIRecurringAnalysis = async () => {
+    if (!selectedAccount) {
+      setError('Please select an account first')
+      return
+    }
+    
+    try {
+      setAiAnalyzing(true)
+      setError(null)
+      
+      console.log('Running AI recurring analysis for account:', selectedAccount)
+      await apiService.runRecurringAnalysis(selectedAccount)
+      
+      setTimeout(async () => {
+        console.log('Refreshing recurring patterns after AI analysis')
+        await loadSubscriptions()
+        setAiAnalyzing(false)
+      }, 5000)
+      
+    } catch (err) {
+      console.error('Error running AI analysis:', err)
+      setError('Failed to run AI analysis: ' + err.message)
+      setAiAnalyzing(false)
+    }
+  }
   
   const loadSubscriptions = async () => {
     try {
       setLoading(true)
       setError(null)
       
-      if (user?.userId) {
-        const data = await apiService.getRecurringPatternsByUser(user.userId)
+      if (selectedAccount) {
+        console.log('Loading recurring patterns for account:', selectedAccount)
+        const data = await apiService.getRecurringPatternsByAccount(selectedAccount)
         setSubscriptions(Array.isArray(data) ? data : [])
       } else {
-        setSubscriptions([])
+        console.log('Loading all recurring patterns for user')
+        const data = await apiService.getRecurringPayments()
+        setSubscriptions(Array.isArray(data) ? data : [])
       }
     } catch (err) {
       console.error('Error loading subscriptions:', err)
@@ -360,13 +408,23 @@ export default function RecurringPage() {
           <h1 className="text-3xl font-black">Recurring Payments</h1>
           <p className="text-gray-600 font-semibold">Manage your subscriptions and recurring expenses</p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 bg-purple-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-purple-700 transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          Add Subscription
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={runAIRecurringAnalysis}
+            disabled={aiAnalyzing}
+            className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors disabled:opacity-50"
+          >
+            {aiAnalyzing ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Brain className="w-5 h-5" />}
+            {aiAnalyzing ? 'Analyzing...' : 'AI Analysis'}
+          </button>
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-2 bg-purple-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-purple-700 transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            Add Subscription
+          </button>
+        </div>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

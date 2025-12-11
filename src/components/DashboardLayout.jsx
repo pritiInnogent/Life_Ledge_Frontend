@@ -6,6 +6,7 @@ import {
   Calendar, Target, TrendingUp, Upload, Settings
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import Logo from './Logo'
 
 // NAVIGATION LINK DATA
 const navItems = [
@@ -68,9 +69,7 @@ export default function DashboardLayout() {
           
           {/* Branding */}
           <div className="flex items-center gap-3 mb-10 mt-3">
-            <div className="w-14 h-14 bg-gradient-to-br from-yellow-400 to-pink-500 rounded-2xl flex items-center justify-center shadow-xl">
-              <Wallet className="w-8 h-8 text-white" />
-            </div>
+            <Logo size="lg" />
            <h1
                  onClick={() => navigate('/')}
                      className="text-3xl font-extrabold text-white cursor-pointer"

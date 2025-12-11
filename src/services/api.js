@@ -199,16 +199,82 @@ async getTransactions(bankAccountId = null) {
     return this.api.get("/transactions", { params });
   }
 
-  addTransaction(data) {
-    return this.api.post("/transactions", data);
+  async addTransaction(data) {
+    try {
+      console.log('API: Adding transaction with data:', data);
+      return await this.api.post("/transactions", data);
+    } catch (error) {
+      console.log("Backend unavailable → using mock transaction creation");
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Get existing transactions from localStorage
+      const existingTransactions = JSON.parse(localStorage.getItem('transactions') || '[]');
+      
+      // Create new transaction with ID
+      const newTransaction = {
+        id: Date.now(),
+        ...data,
+        createdAt: new Date().toISOString()
+      };
+      
+      // Add to existing transactions
+      const updatedTransactions = [newTransaction, ...existingTransactions];
+      
+      // Save to localStorage
+      localStorage.setItem('transactions', JSON.stringify(updatedTransactions));
+      
+      return { 
+        success: true, 
+        message: 'Transaction added successfully (offline mode)',
+        transaction: newTransaction 
+      };
+    }
   }
 
   async deleteTransaction(transactionId) {
-    return await this.api.delete(`/transactions/${transactionId}`);
+    try {
+      return await this.api.delete(`/transactions/${transactionId}`);
+    } catch (error) {
+      console.log("Backend unavailable → using mock transaction deletion");
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Get existing transactions from localStorage
+      const existingTransactions = JSON.parse(localStorage.getItem('transactions') || '[]');
+      
+      // Remove transaction with matching ID
+      const updatedTransactions = existingTransactions.filter(txn => txn.id !== transactionId);
+      
+      // Save to localStorage
+      localStorage.setItem('transactions', JSON.stringify(updatedTransactions));
+      
+      return { success: true, message: 'Transaction deleted successfully' };
+    }
   }
 
   async deleteAllTransactions() {
-    return await this.api.delete("/transactions/delete-all");
+    try {
+      return await this.api.delete("/transactions/delete-all");
+    } catch (error) {
+      console.log("Backend unavailable → using mock delete all transactions");
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Clear all transactions from localStorage
+      localStorage.setItem('transactions', JSON.stringify([]));
+      
+      return { success: true, message: 'All transactions deleted successfully' };
+    }
+  }
+
+  async getTransactionsByMonth(month, year, bankAccountId = null) {
+    const params = { month, year };
+    if (bankAccountId) params.bankAccountId = bankAccountId;
+    return await this.api.get("/transactions/month", { params });
+  }
+
+  async getSortedTransactions(sortBy = "date", direction = "desc", bankAccountId = null) {
+    const params = { sortBy, direction };
+    if (bankAccountId) params.bankAccountId = bankAccountId;
+    return await this.api.get("/transactions/sort", { params });
   }
 
   // PDF IMPORT
@@ -239,11 +305,36 @@ async getTransactions(bankAccountId = null) {
   }
 
   async createGoal(goalData) {
-    return await this.api.post("/goals", goalData);
+    // Map frontend fields to backend expected fields
+    const backendData = {
+      name: goalData.name,
+      category: goalData.category,
+      targetAmount: goalData.targetAmount,
+      currentAmount: goalData.currentAmount || 0,
+      type: this.mapGoalType(goalData.type)
+    };
+    return await this.api.post("/goals", backendData);
   }
 
   async updateGoal(goalId, goalData) {
-    return await this.api.put(`/goals/${goalId}`, goalData);
+    // Map frontend fields to backend expected fields
+    const backendData = {
+      name: goalData.name,
+      category: goalData.category,
+      targetAmount: goalData.targetAmount,
+      currentAmount: goalData.currentAmount || 0,
+      type: this.mapGoalType(goalData.type)
+    };
+    return await this.api.put(`/goals/${goalId}`, backendData);
+  }
+
+  mapGoalType(frontendType) {
+    const typeMap = {
+      'budget': 'BUDGET',
+      'savings': 'SAVING',
+      'spending': 'SPENDINGCAP'
+    };
+    return typeMap[frontendType] || frontendType.toUpperCase();
   }
 
   async deleteGoal(goalId) {
@@ -258,17 +349,20 @@ async getTransactions(bankAccountId = null) {
     return await this.api.get(`/goals/${goalId}/nudge`);
   }
 
+  // NUDGES
+  async getUserNudges() {
+    return await this.api.get('/nudges');
+  }
+
+  async markNudgeAsRead(nudgeId) {
+    return await this.api.patch(`/nudges/${nudgeId}/read`);
+  }
+
   // RECURRING PAYMENTS
   async getRecurringPayments() {
     try {
-      // Since there's no GET /api/recurring endpoint, we'll need to get by account
-      // First get user accounts, then get patterns for each account
-      const accounts = await this.getAccounts();
-      if (accounts.length === 0) return [];
-      
-      // Get patterns for the first account (or all accounts)
-      const patterns = await this.getRecurringPatternsByAccount(accounts[0].id);
-      return patterns;
+      console.log('Fetching all recurring patterns for user');
+      return await this.api.get('/recurring');
     } catch (error) {
       console.log("Backend unavailable → using mock recurring patterns");
       return [];
@@ -277,6 +371,7 @@ async getTransactions(bankAccountId = null) {
 
   async getRecurringPatternsByAccount(bankAccountId) {
     try {
+      console.log('Fetching recurring patterns for account:', bankAccountId);
       return await this.api.get(`/recurring/account/${bankAccountId}`);
     } catch (error) {
       console.log("Backend unavailable → using mock patterns for account");
@@ -285,7 +380,13 @@ async getTransactions(bankAccountId = null) {
   }
 
   async getRecurringPatternsByUser(userId) {
-    return await this.api.get(`/recurring/user/${userId}`);
+    try {
+      console.log('Fetching recurring patterns for user:', userId);
+      return await this.api.get(`/recurring/user/${userId}`);
+    } catch (error) {
+      console.log("Backend unavailable → using mock patterns for user");
+      return [];
+    }
   }
 
   async createRecurringPattern(recurringData) {
@@ -321,9 +422,10 @@ async getTransactions(bankAccountId = null) {
   }
 
   // AI INSIGHTS
-  async getInsightsStatus() {
+  async getInsightsStatus(accountId = null) {
     try {
-      return await this.api.get("/ai/insights/status");
+      const params = accountId ? { accountId } : {};
+      return await this.api.get("/ai/status", { params });
     } catch (error) {
       console.log("Backend unavailable → using mock insights status");
       return { status: "completed", lastAnalysis: new Date().toISOString() };
@@ -339,14 +441,67 @@ async getTransactions(bankAccountId = null) {
     }
   }
 
-  async analyzeFinancialData() {
+  async analyzeFinancialData(accountId) {
+    if (!accountId) {
+      throw new Error('Account ID is required for analysis');
+    }
     try {
-      return await this.api.post("/ai/analyze");
+      return await this.api.post("/ai/analyze", null, { params: { accountId } });
     } catch (error) {
       console.log("Backend unavailable → using mock analysis");
       await new Promise(resolve => setTimeout(resolve, 1000));
       return { message: "Analysis completed", status: "success" };
     }
+  }
+
+  // AI Specific Operations
+  async runCategorization(accountId = null) {
+    const params = accountId ? { accountId } : {};
+    return await this.api.post("/ai/categorize", null, { params });
+  }
+
+  async runRecurringAnalysis(accountId = null) {
+    const params = accountId ? { accountId } : {};
+    return await this.api.post("/ai/recurring", null, { params });
+  }
+
+  async runAnomalyDetection(accountId = null) {
+    const params = accountId ? { accountId } : {};
+    return await this.api.post("/ai/anomalies", null, { params });
+  }
+
+  async runSummaryGeneration(accountId = null) {
+    const params = accountId ? { accountId } : {};
+    return await this.api.post("/ai/summary", null, { params });
+  }
+
+  async getStepStatus(step, accountId = null) {
+    const params = accountId ? { accountId } : {};
+    return await this.api.get(`/ai/status/${step}`, { params });
+  }
+
+  // INSIGHTS
+  async getInsightsByAccount(accountId) {
+    if (!accountId) {
+      throw new Error('Account ID is required');
+    }
+    return await this.api.get(`/insights/account/${accountId}`);
+  }
+
+  async getInsight(insightId) {
+    return await this.api.get(`/insights/${insightId}`);
+  }
+
+  async createInsight(insightData) {
+    return await this.api.post("/insights", insightData);
+  }
+
+  async updateInsight(insightId, aiText) {
+    return await this.api.put(`/insights/${insightId}`, { aiText });
+  }
+
+  async deleteInsight(insightId) {
+    return await this.api.delete(`/insights/${insightId}`);
   }
 
   async getCategoryBreakdown() {
