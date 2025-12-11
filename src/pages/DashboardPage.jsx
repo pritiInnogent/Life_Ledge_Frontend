@@ -77,88 +77,123 @@ export default function DashboardPage() {
   const [userBudget, setUserBudget] = useState(0)
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
+  const [accounts, setAccounts] = useState([])
+  const [accountFilter, setAccountFilter] = useState('all')
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        // Fetch recent transactions
-        const recentResponse = await ApiService.getRecentTransactions()
-        setRecentTransactions(recentResponse || [])
-        
-        // Fetch total spent
-        try {
-          const spentResponse = await ApiService.getTotalSpent()
-          const totalSpentValue = typeof spentResponse === 'number' ? spentResponse : 
-                                 spentResponse?.totalSpent || spentResponse?.data || 0
-          setTotalSpent(totalSpentValue)
-        } catch (spentError) {
-          console.error('Total spent API failed:', spentError)
-        }
-        
-        // Fetch transaction count
-        try {
-          const countResponse = await ApiService.getTransactionCount()
-          const countValue = typeof countResponse === 'number' ? countResponse : 
-                            countResponse?.count || countResponse?.transactionCount || countResponse?.data || 0
-          setTransactionCount(countValue)
-        } catch (countError) {
-          console.error('Transaction count API failed:', countError)
-        }
+    loadAccounts()
+  }, [])
 
-        // Fetch top spending category
-        try {
-          const transactions = await ApiService.getTransactions()
-          const categoryMap = {}
-          transactions.forEach(tx => {
-            const category = tx.category || 'Other'
-            categoryMap[category] = (categoryMap[category] || 0) + Math.abs(tx.amount)
-          })
-          const topCat = Object.entries(categoryMap).sort((a, b) => b[1] - a[1])[0]
-          setTopCategory(topCat ? { name: topCat[0], amount: topCat[1] } : null)
-        } catch (error) {
-          console.error('Error fetching top category:', error)
-        }
+  useEffect(() => {
+    if (accountFilter !== 'all') {
+      fetchDashboardData()
+    } else {
+      // Reset data when no account selected
+      setTotalSpent(0)
+      setTransactionCount(0)
+      setRecentTransactions([])
+      setTopCategory(null)
+      setRecurringPatterns([])
+      setUserBudget(0)
+      setLoading(false)
+    }
+  }, [accountFilter])
 
-        // Fetch recurring patterns
-        try {
-          const recurringResponse = await ApiService.getRecurringPayments()
-          setRecurringPatterns(recurringResponse?.slice(0, 3) || [])
-        } catch (error) {
-          console.error('Error fetching recurring patterns:', error)
-        }
-
-        // Fetch user's budget goals
-        try {
-          const goalsResponse = await ApiService.getUserGoals()
-          const budgetGoals = goalsResponse?.filter(goal => 
-            (goal.type || '').toUpperCase() === 'BUDGET'
-          ) || []
-          const totalBudget = budgetGoals.reduce((sum, goal) => sum + (goal.targetAmount || 0), 0)
-          setUserBudget(totalBudget)
-        } catch (error) {
-          console.error('Error fetching budget goals:', error)
-          setUserBudget(0)
-        }
-
-        // Fetch AI insights
-        try {
-          const insightsResponse = await ApiService.getLatestInsights()
-          if (insightsResponse?.insight?.aiText) {
-            const parsed = JSON.parse(insightsResponse.insight.aiText)
-            setAiInsights(parsed)
-          }
-        } catch (error) {
-          console.error('Error fetching AI insights:', error)
-        }
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error)
-      } finally {
+  const loadAccounts = async () => {
+    try {
+      const data = await ApiService.getAccounts()
+      setAccounts(data || [])
+      if (data?.length > 0) {
+        setAccountFilter(data[0].id.toString())
+      } else {
         setLoading(false)
       }
+    } catch (error) {
+      console.error('Error loading accounts:', error)
+      setLoading(false)
     }
+  }
 
-    fetchDashboardData()
-  }, [])
+  const fetchDashboardData = async () => {
+    if (accountFilter === 'all') return
+    
+    try {
+      setLoading(true)
+      // Fetch recent transactions
+      const recentResponse = await ApiService.getRecentTransactions()
+      setRecentTransactions(recentResponse || [])
+        
+      // Fetch total spent
+      try {
+        const spentResponse = await ApiService.getTotalSpent()
+        const totalSpentValue = typeof spentResponse === 'number' ? spentResponse : 
+                               spentResponse?.totalSpent || spentResponse?.data || 0
+        setTotalSpent(totalSpentValue)
+      } catch (spentError) {
+        console.error('Total spent API failed:', spentError)
+      }
+      
+      // Fetch transaction count
+      try {
+        const countResponse = await ApiService.getTransactionCount()
+        const countValue = typeof countResponse === 'number' ? countResponse : 
+                          countResponse?.count || countResponse?.transactionCount || countResponse?.data || 0
+        setTransactionCount(countValue)
+      } catch (countError) {
+        console.error('Transaction count API failed:', countError)
+      }
+
+      // Fetch top spending category
+      try {
+        const transactions = await ApiService.getTransactions()
+        const categoryMap = {}
+        transactions.forEach(tx => {
+          const category = tx.category || 'Other'
+          categoryMap[category] = (categoryMap[category] || 0) + Math.abs(tx.amount)
+        })
+        const topCat = Object.entries(categoryMap).sort((a, b) => b[1] - a[1])[0]
+        setTopCategory(topCat ? { name: topCat[0], amount: topCat[1] } : null)
+      } catch (error) {
+        console.error('Error fetching top category:', error)
+      }
+
+      // Fetch recurring patterns
+      try {
+        const recurringResponse = await ApiService.getRecurringPayments()
+        setRecurringPatterns(recurringResponse?.slice(0, 3) || [])
+      } catch (error) {
+        console.error('Error fetching recurring patterns:', error)
+      }
+
+      // Fetch user's budget goals
+      try {
+        const goalsResponse = await ApiService.getUserGoals()
+        const budgetGoals = goalsResponse?.filter(goal => 
+          (goal.type || '').toUpperCase() === 'BUDGET'
+        ) || []
+        const totalBudget = budgetGoals.reduce((sum, goal) => sum + (goal.targetAmount || 0), 0)
+        setUserBudget(totalBudget)
+      } catch (error) {
+        console.error('Error fetching budget goals:', error)
+        setUserBudget(0)
+      }
+
+      // Fetch AI insights
+      try {
+        const insightsResponse = await ApiService.getLatestInsights()
+        if (insightsResponse?.insight?.aiText) {
+          const parsed = JSON.parse(insightsResponse.insight.aiText)
+          setAiInsights(parsed)
+        }
+      } catch (error) {
+        console.error('Error fetching AI insights:', error)
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleDownloadReport = async () => {
     setDownloading(true)
@@ -204,9 +239,55 @@ export default function DashboardPage() {
     },
   ]
 
+  if (accountFilter === 'all' || accounts.length === 0) {
+    return (
+      <div className="space-y-8">
+        <div className="flex justify-between items-center">
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-2">Select Bank Account</label>
+            <select
+              value={accountFilter}
+              onChange={(e) => setAccountFilter(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+            >
+              <option value="all">Select Bank Account</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.bankName} ••••{account.last4Digits}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        
+        <div className="bg-white rounded-3xl p-12 shadow-xl text-center">
+          <div className="w-20 h-20 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <BarChart3 className="w-10 h-10 text-white" />
+          </div>
+          <h3 className="text-3xl font-black bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent mb-4">Select Bank Account</h3>
+          <p className="text-gray-600 mb-8 text-lg">Choose a bank account to view your financial dashboard</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-8">
-      <div className="flex justify-end items-center">
+      <div className="flex justify-between items-center">
+        <div>
+          <label className="block text-sm font-medium text-gray-600 mb-2">Bank Account</label>
+          <select
+            value={accountFilter}
+            onChange={(e) => setAccountFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+          >
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.bankName} ••••{account.last4Digits}
+              </option>
+            ))}
+          </select>
+        </div>
         <button
           onClick={handleDownloadReport}
           disabled={downloading}
@@ -320,7 +401,7 @@ export default function DashboardPage() {
           </button>
           <button 
             onClick={() => navigate('/app/analytics')}
-            className="p-4 bg-orange-50 hover:orange-100 rounded-xl transition-colors text-center"
+            className="p-4 bg-orange-50 hover:bg-orange-100 rounded-xl transition-colors text-center"
           >
             <BarChart3 className="w-8 h-8 text-orange-600 mx-auto mb-2" />
             <div className="font-medium text-sm">View Reports</div>

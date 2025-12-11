@@ -1,17 +1,17 @@
+// src/services/api.js
 import axios from "axios";
 
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL; 
-// example: http://localhost:9090/api
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
 class ApiService {
   constructor() {
     this.api = axios.create({
       baseURL: API_BASE_URL,
-      headers: { "Content-Type": "application/json" },
-      withCredentials: true
+      headers: {},   // IMPORTANT: allow axios to auto-handle Content-Type
+      withCredentials: true,
     });
 
-    // Add token automatically
+    // Inject JWT token
     this.api.interceptors.request.use((config) => {
       const token = localStorage.getItem("token");
       if (token) {
@@ -20,36 +20,29 @@ class ApiService {
       return config;
     });
 
-    // Global error handler
+    // Global error handling
     this.api.interceptors.response.use(
-      (response) => {
-        console.log('API Response:', response);
-        console.log('Response Data:', response.data);
-        return response.data;
-      },
+      (response) => response.data,
       (error) => {
-        console.error("API Error:", error.response?.data || error.message);
-
         const msg =
           error.response?.data?.message ||
           error.response?.data?.error ||
           error.message ||
-          "API request failed";
+          "Request failed";
 
         throw new Error(msg);
       }
     );
   }
 
-
-  // AUTH
-
+  /* ==============================
+              AUTH
+  =============================== */
   async login(email, password) {
-  const res = await this.api.post("/auth/login", { email, password });
-  localStorage.setItem("token", res.token);
-  return res;
-}
-
+    const res = await this.api.post("/auth/login", { email, password });
+    localStorage.setItem("token", res.token);
+    return res;
+  }
 
   async register(name, email, password, phoneNumber) {
     return this.api.post("/auth/signup", {
@@ -63,254 +56,131 @@ class ApiService {
   async signout() {
     try {
       await this.api.post("/auth/signout");
-    } catch (error) {
-      console.error("Signout API error:", error);
-    } finally {
-      // Always clear local storage regardless of API response
+    } catch {}
+    finally {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
     }
   }
 
-  logout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-  }
-
-  // USER
-
+  /* ==============================
+          USER
+  =============================== */
   getUserProfile() {
     return this.api.get("/user/profile");
   }
 
-  updateUserProfile(userData) {
-    return this.api.put("/user/update", userData);
+  updateUserProfile(data) {
+    return this.api.put("/user/update", data);
   }
 
   uploadProfilePicture(file) {
     const formData = new FormData();
     formData.append("file", file);
+
     return this.api.post("/user/profile-pic", formData, {
-      headers: { "Content-Type": "multipart/form-data" }
+      headers: { "Content-Type": "multipart/form-data" },
     });
   }
 
-  // BANK ACCOUNTS
-  async createAccount(accountData) {
-    return await this.api.post("/accounts", accountData);
+  /* ==============================
+         BANK ACCOUNTS
+  =============================== */
+  getAccounts() {
+    return this.api.get("/accounts");
   }
 
-  async getAccounts() {
-    return await this.api.get("/accounts");
+  createAccount(data) {
+    return this.api.post("/accounts", data);
   }
 
-  async deleteAccount(accountId) {
-    return await this.api.delete(`/accounts/${accountId}`);
-  }
-  // TRANSACTIONS
-  async getTransactions() {
-    try {
-      return await this.api.get("/transactions");
-    } catch (error) {
-      // If backend is not available, return mock data from localStorage
-      console.log("Backend not available, using mock transactions");
-      
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      const transactions = JSON.parse(localStorage.getItem('transactions') || '[]');
-      return transactions;
-    }
-  }
-  getTotalSpent() {
-    return this.api.get("/transactions/total-spent");
+  deleteAccount(id) {
+    return this.api.delete(`/accounts/${id}`);
   }
 
-  getTransactionCount() {
-    return this.api.get("/transactions/count");
+  /* ==============================
+       TRANSACTIONS
+  =============================== */
+  getTransactions() {
+    return this.api.get("/transactions");
   }
 
-  getRecentTransactions() {
-  return this.api.get("/transactions/recent");
+  /* ==============================
+          AI INSIGHTS
+  =============================== */
+
+  // POST endpoints - trigger AI processing
+  startAIAnalysis(accountId) {
+    const formData = new FormData();
+    formData.append('accountId', accountId);
+    return this.api.post('/ai/analyze', formData);
   }
-   
-  getFilteredTransactions(startDate, endDate, type) {
-    const params = {};
-    if (startDate) params.startDate = startDate;
-    if (endDate) params.endDate = endDate;
-    if (type && type !== 'all') params.type = type;
+
+  startCategorization(accountId) {
+    const formData = new FormData();
+    formData.append('accountId', accountId);
+    return this.api.post('/ai/categorize', formData);
+  }
+
+  startRecurringAnalysis(accountId) {
+    const formData = new FormData();
+    formData.append('accountId', accountId);
+    return this.api.post('/ai/recurring', formData);
+  }
+
+  startAnomalyDetection(accountId) {
+    const formData = new FormData();
+    formData.append('accountId', accountId);
+    return this.api.post('/ai/anomalies', formData);
+  }
+
+  startSummaryGeneration(accountId) {
+    const formData = new FormData();
+    formData.append('accountId', accountId);
+    return this.api.post('/ai/summary', formData);
+  }
+
+  // GET endpoints - check status
+  getAIStatus() {
+    return this.api.get('/ai/status');
+  }
+
+  getAIStepStatus(step) {
+    return this.api.get(`/ai/status/${step}`);
+  }
+
+  // GET endpoints - retrieve stored insights
+  async getInsightsSummary(accountId) {
+    const response = await this.api.get(`/insights/account/${accountId}`);
     
-    return this.api.get("/transactions", { params });
-  }
-
-  addTransaction(data) {
-    return this.api.post("/transactions", data);
-  }
-
-  deleteTransaction(id) {
-    return this.api.delete(`/transactions/${id}`);
-  }
-
-  deleteAllTransactions() {
-    return this.api.delete("/transactions/delete-all");
-  }
-
-  // PDF IMPORT
-  async processPdf(file, accountNumber, password = "") {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("accountNumber", accountNumber);
-    formData.append("password", password);
-
-    const result = await this.api.post("/pdf/upload", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
-
-    // If a new account was created, sync it to profile
-    if (result.newAccount && result.accountNumber) {
-      await this.syncBankAccountToProfile(result.accountNumber, result.bankName || "HDFC");
+    // Parse aiText if it's a JSON string
+    if (response.aiText && typeof response.aiText === 'string') {
+      try {
+        response.parsedInsights = JSON.parse(response.aiText);
+      } catch (error) {
+        console.error('Failed to parse aiText:', error);
+        response.parsedInsights = null;
+      }
     }
-
-    return result;
+    
+    return response;
   }
 
-  // Sync extracted bank account to profile (no longer needed as backend handles this automatically)
-  async syncBankAccountToProfile(accountNumber, bankName) {
-    // Backend automatically creates accounts during PDF processing
-    // This method is kept for compatibility but does nothing
-    console.log('Bank account automatically created by backend:', { accountNumber, bankName });
+  getCategories() {
+    return this.api.get('/categories');
   }
 
-  async processCsv(file, accountNumber) {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("accountNumber", accountNumber);
-
-    const result = await this.api.post("/pdf/upload-csv", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
-
-    // If a new account was created, sync it to profile
-    if (result.newAccount && result.accountNumber) {
-      await this.syncBankAccountToProfile(result.accountNumber, result.bankName || "Unknown Bank");
-    }
-
-    return result;
+  getRecurringPatterns(accountId) {
+    return this.api.get(`/recurring/account/${accountId}`);
   }
 
-  // GOALS
-  async getUserGoals() {
-    return await this.api.get('/goals');
+  getRecurringPayments(accountId) {
+    return this.api.get(`/recurring/account/${accountId}`);
   }
 
-  async createGoal(goalData) {
-    return await this.api.post("/goals", goalData);
+  getAnomaliesData(accountId) {
+    return this.api.get(`/anomalies/account/${accountId}`);
   }
-
-  async updateGoal(goalId, goalData) {
-    return await this.api.put(`/goals/${goalId}`, goalData);
-  }
-
-  async deleteGoal(goalId) {
-    return await this.api.delete(`/goals/${goalId}`);
-  }
-
-  async contributeToGoal(goalId, amount) {
-    return await this.api.post(`/goals/${goalId}/contribute`, { amount });
-  }
-
-  async getGoalNudge(goalId) {
-    return await this.api.get(`/goals/${goalId}/nudge`);
-  }
-
-  // RECURRING PAYMENTS
-  async getRecurringPayments() {
-    return await this.api.get('/recurring');
-  }
-
-  async createRecurringPayment(recurringData) {
-    return await this.api.post("/recurring", recurringData);
-  }
-
-  async updateRecurringPayment(recurringId, recurringData) {
-    return await this.api.put(`/recurring/${recurringId}`, recurringData);
-  }
-
-  async deleteRecurringPayment(recurringId) {
-    return await this.api.delete(`/recurring/${recurringId}`);
-  }
-
-  // SETTINGS
-  async changePassword(currentPassword, newPassword) {
-    return await this.api.put("/user/change-password", {
-      currentPassword,
-      newPassword
-    });
-  }
-
-  async updateSecuritySettings(settings) {
-    return await this.api.put("/user/security-settings", settings);
-  }
-
-  async setupTwoFactorAuth() {
-    return await this.api.post("/user/setup-2fa");
-  }
-
-  async verifyTwoFactorAuth(code) {
-    return await this.api.post("/user/verify-2fa", { code });
-  }
-
-  // AI INSIGHTS - New endpoints
-  async startSummaryAnalysis() {
-    return await this.api.post('/ai/summary');
-  }
-
-  async getAnalysisStatus() {
-    return await this.api.get('/ai/status');
-  }
-
-  async startRecurringAnalysis() {
-    return await this.api.post('/ai/recurring');
-  }
-
-  async getRecurringPatterns(accountId) {
-    return await this.api.get(`/recurring/account/${accountId}`);
-  }
-
-  // ANALYTICS
-  async getLatestAnalytics(accountId) {
-    try {
-      const url = accountId ? `/analytics/latest?accountId=${accountId}` : "/analytics/latest";
-      return await this.api.get(url);
-    } catch (error) {
-      console.log('Analytics API not available, using mock data');
-      // Import mock data for testing
-      const { mockAnalyticsResponse } = await import('../utils/analyticsTestData.js');
-      await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
-      return mockAnalyticsResponse;
-    }
-  }
-
-  // CATEGORIES
-  async getCategories() {
-    return await this.api.get("/categories");
-  }
-
-  async createCategory(categoryData) {
-    return await this.api.post("/categories", categoryData);
-  }
-
-  async getCategoryById(categoryId) {
-    return await this.api.get(`/categories/${categoryId}`);
-  }
-
-  async updateCategory(categoryId, categoryData) {
-    return await this.api.put(`/categories/${categoryId}`, categoryData);
-  }
-
-  async deleteCategory(categoryId) {
-    return await this.api.delete(`/categories/${categoryId}`);
-  }
-  
 }
 
 export default new ApiService();
