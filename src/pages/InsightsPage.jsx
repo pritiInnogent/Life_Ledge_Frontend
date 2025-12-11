@@ -23,21 +23,38 @@ const InsightsPage = () => {
   const [activeSection, setActiveSection] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [accountFilter, setAccountFilter] = useState('all');
+  const [analysisStatus, setAnalysisStatus] = useState(null);
+  const [statusPolling, setStatusPolling] = useState(false);
+  const [analysisController, setAnalysisController] = useState(null);
 
   useEffect(() => {
     if (user?.userId) {
-      // Only fetch existing insights on load, don't auto-analyze
-      fetchExistingInsights();
-      loadAccounts();
+      loadAccountsAndCheckInsights();
     }
   }, [user]);
+  
+  const loadAccountsAndCheckInsights = async () => {
+    const accountsArray = await loadAccounts();
+    if (accountsArray.length > 0) {
+      await checkExistingInsights(accountsArray);
+    }
+  };
 
   const loadAccounts = async () => {
     try {
       const data = await apiService.getAccounts();
-      setAccounts(Array.isArray(data) ? data : []);
+      const accountsArray = Array.isArray(data) ? data : [];
+      setAccounts(accountsArray);
+      
+      // Auto-select first account if available
+      if (accountsArray.length > 0 && accountFilter === 'all') {
+        setAccountFilter(accountsArray[0].id.toString());
+      }
+      
+      return accountsArray;
     } catch (err) {
       console.error('Error fetching accounts:', err);
+      return [];
     }
   };
 
@@ -48,110 +65,162 @@ const InsightsPage = () => {
     }
   }, [data, activeSection])
 
-  const fetchExistingInsights = async () => {
+  const checkExistingInsights = async (accountsArray) => {
     try {
       setLoading(true);
       setError(null);
-
-      // Only fetch existing insights, don't trigger new analysis
-      const response = await apiService.getLatestInsights();
-      console.log("Raw API:", response);
-
-      if (!response?.insight?.aiText) {
-        setData(null);
-        return;
+      
+      // Try to load existing insights from the first available account
+      if (accountsArray.length > 0) {
+        const accountId = accountsArray[0].id;
+        setAccountFilter(accountId.toString());
+        
+        // Try to fetch existing data
+        const [summaryResponse, recurringResponse, anomaliesResponse, insightsResponse] = await Promise.allSettled([
+          apiService.getSummary(accountId),
+          apiService.getRecurringPatterns(accountId),
+          apiService.getAnomalies(accountId),
+          apiService.generateInsights()
+        ]);
+        
+        // Check if we have any valid data
+        const hasData = [
+          summaryResponse.status === 'fulfilled' && summaryResponse.value,
+          recurringResponse.status === 'fulfilled' && recurringResponse.value?.length > 0,
+          anomaliesResponse.status === 'fulfilled' && anomaliesResponse.value?.length > 0,
+          insightsResponse.status === 'fulfilled' && insightsResponse.value?.length > 0
+        ].some(Boolean);
+        
+        if (hasData) {
+          // We have existing data, populate it
+          setData({
+            overall_health: {
+              summary: summaryResponse.status === 'fulfilled' ? summaryResponse.value?.summary || 'Previous analysis available' : 'Analysis available',
+              emoji: '📊',
+              analysis: summaryResponse.status === 'fulfilled' ? summaryResponse.value?.analysis || 'Your spending patterns have been analyzed' : 'Previous insights available'
+            },
+            spending_breakdown: summaryResponse.status === 'fulfilled' ? summaryResponse.value?.categories || summaryResponse.value?.breakdown || [] : [],
+            recurring_patterns: recurringResponse.status === 'fulfilled' ? recurringResponse.value || [] : [],
+            anomalies: anomaliesResponse.status === 'fulfilled' ? anomaliesResponse.value || [] : [],
+            nudges: insightsResponse.status === 'fulfilled' ? insightsResponse.value?.recommendations || insightsResponse.value || [] : []
+          });
+          setActiveSection('overall');
+        }
       }
-
-      const raw = JSON.parse(response.insight.aiText);
-
-      console.log("Parsed AI text:", raw);
-
-      // 🔥 FINAL FIX — MAP BACKEND → FRONTEND STRUCTURE
-      const mapped = {
-        overall_health: {
-          summary:
-            raw.analysis?.overall_summary ||
-            raw.analysis?.overallSummary ||
-            "Analysis completed",
-
-          emoji: raw.analysis?.emoji || "💡",
-
-          analysis:
-            raw.analysis?.overall_details ||
-            raw.analysis?.overallDetails ||
-            "",
-        },
-
-        spending_breakdown:
-          raw.analysis?.categorized ||
-          raw.analysis?.spendingBreakdown ||
-          [],
-
-        recurring_patterns:
-          raw.analysis?.recurring ||
-          raw.analysis?.recurringPatterns ||
-          [],
-
-        anomalies:
-          raw.analysis?.anomalies ||
-          raw.analysis?.detectedAnomalies ||
-          [],
-
-        nudges:
-          raw.analysis?.nudges ||
-          raw.analysis?.smartNudges ||
-          [],
-      };
-
-      console.log("Mapped Final Data:", mapped);
-      setData(mapped);
     } catch (err) {
-      console.error("Error loading insights:", err);
-      setError(err.message);
+      console.error("Error loading existing insights:", err);
+      // Don't set error, just continue without existing data
     } finally {
       setLoading(false);
     }
   };
 
   const analyzeInsights = async () => {
+    if (accountFilter === 'all' || !accountFilter) {
+      setError('Please select a bank account first');
+      return;
+    }
+
     try {
       setAnalyzing(true);
       setError(null);
-
-      // Trigger analysis
-      await apiService.analyzeFinancialData();
-
-      // Fetch latest insights
-      const response = await apiService.getLatestInsights();
-      console.log("New analysis results:", response);
-
-      if (!response?.insight?.aiText) {
-        setData(null);
-        return;
-      }
-
-      const raw = JSON.parse(response.insight.aiText);
-      console.log("Parsed AI text:", raw);
-
-      const mapped = {
-        overall_health: {
-          summary: raw.analysis?.overall_summary || raw.analysis?.overallSummary || "Analysis completed",
-          emoji: raw.analysis?.emoji || "💡",
-          analysis: raw.analysis?.overall_details || raw.analysis?.overallDetails || "",
-        },
-        spending_breakdown: raw.analysis?.categorized || raw.analysis?.spendingBreakdown || [],
-        recurring_patterns: raw.analysis?.recurring || raw.analysis?.recurringPatterns || [],
-        anomalies: raw.analysis?.anomalies || raw.analysis?.detectedAnomalies || [],
-        nudges: raw.analysis?.nudges || raw.analysis?.smartNudges || [],
+      setAnalysisStatus('Starting AI analysis...');
+      
+      // Call POST /ai/summary to start Gemini analysis
+      await apiService.startSummaryAnalysis();
+      
+      // Poll status and get summary
+      setAnalysisStatus('AI is analyzing your data...');
+      const pollForSummary = async () => {
+        try {
+          const statusResponse = await apiService.getAnalysisStatus();
+          console.log('Status response:', statusResponse);
+          
+          if (statusResponse?.summary) {
+            // Analysis complete, show summary
+            setData({
+              overall_health: {
+                summary: statusResponse.summary,
+                emoji: '📊',
+                analysis: 'AI analysis completed'
+              },
+              spending_breakdown: [],
+              recurring_patterns: [],
+              anomalies: [],
+              nudges: []
+            });
+            setActiveSection('overall');
+            setAnalyzing(false);
+            setAnalysisStatus(null);
+          } else {
+            // Still processing, poll again
+            setTimeout(pollForSummary, 2000);
+          }
+        } catch (err) {
+          console.error('Error polling status:', err);
+          setError('Failed to get analysis status');
+          setAnalyzing(false);
+          setAnalysisStatus(null);
+        }
       };
-
-      console.log("Mapped Final Data:", mapped);
-      setData(mapped);
+      
+      // Start polling after 3 seconds
+      setTimeout(pollForSummary, 3000);
+      
     } catch (err) {
-      console.error("Error analyzing insights:", err);
-      setError(err.message);
-    } finally {
+      console.error('Error starting analysis:', err);
+      setError('Failed to start analysis: ' + err.message);
       setAnalyzing(false);
+      setAnalysisStatus(null);
+    }
+  };
+
+  const stopAnalysis = () => {
+    setAnalyzing(false);
+    setAnalysisStatus(null);
+    setAnalysisController(null);
+    setError('Analysis stopped by user');
+  };
+
+
+
+  const fetchRecurringPatterns = async () => {
+    if (accountFilter === 'all' || !accountFilter) return;
+    
+    try {
+      // First call POST /ai/recurring to start analysis
+      await apiService.startRecurringAnalysis();
+      
+      // Then call GET /recurring/account/{id} to get results
+      const accountId = parseInt(accountFilter);
+      const response = await apiService.getRecurringPatterns(accountId);
+      console.log("Recurring patterns:", response);
+      
+      setData(prev => ({
+        ...prev,
+        recurring_patterns: response || []
+      }));
+    } catch (err) {
+      console.error("Error fetching recurring patterns:", err);
+      setError(err.message);
+    }
+  };
+
+  const fetchAnomalies = async () => {
+    if (accountFilter === 'all' || !accountFilter) return;
+    
+    try {
+      const accountId = parseInt(accountFilter);
+      const response = await apiService.getAnomalies(accountId);
+      console.log("Anomalies:", response);
+      
+      setData(prev => ({
+        ...prev,
+        anomalies: response || []
+      }));
+    } catch (err) {
+      console.error("Error fetching anomalies:", err);
+      setError(err.message);
     }
   };
 
@@ -208,23 +277,34 @@ const InsightsPage = () => {
             ))}
           </select>
         </div>
-        <button
-          onClick={analyzeInsights}
-          disabled={analyzing}
-          className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 disabled:opacity-50 flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
-        >
-          {analyzing ? (
-            <>
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              Analyzing...
-            </>
-          ) : (
-            <>
-              <Brain className="w-4 h-4" />
-              {data ? 'Re-analyze' : 'Analyze'}
-            </>
+        <div className="flex gap-3">
+          <button
+            onClick={analyzeInsights}
+            disabled={analyzing || accountFilter === 'all' || !accountFilter}
+            className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 disabled:opacity-50 flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
+          >
+            {analyzing ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                {analysisStatus || 'Analyzing...'}
+              </>
+            ) : (
+              <>
+                <Brain className="w-4 h-4" />
+                {accountFilter === 'all' || !accountFilter ? 'Select Account First' : 'Get AI Insights'}
+              </>
+            )}
+          </button>
+          
+          {analyzing && (
+            <button
+              onClick={stopAnalysis}
+              className="bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2 shadow-lg"
+            >
+              Stop
+            </button>
           )}
-        </button>
+        </div>
       </div>
 
       {/* Error */}
@@ -234,20 +314,20 @@ const InsightsPage = () => {
         </div>
       )}
 
-      {/* Default Layout */}
+      {/* Select Bank Account Message */}
       {!data && !analyzing && !loading && (
         <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-12 shadow-xl border border-white/20 text-center animate-slide-up">
           <div className="w-20 h-20 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
             <Brain className="w-10 h-10 text-white" />
           </div>
-          <h3 className="text-3xl font-black bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent mb-4">AI Financial Insights</h3>
-          <p className="text-gray-600 mb-8 text-lg">Get personalized insights about your spending patterns, anomalies, and smart recommendations</p>
+          <h3 className="text-3xl font-black bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent mb-4">Select Bank Account</h3>
+          <p className="text-gray-600 mb-8 text-lg">Choose a bank account to get AI-powered financial insights</p>
           <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-6 border border-purple-100">
-            <p className="text-sm font-semibold text-gray-700 mb-4">Our AI will analyze your transactions to provide:</p>
+            <p className="text-sm font-semibold text-gray-700 mb-4">Select an account above to analyze:</p>
             <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                Spending breakdown by category
+                Spending summary & insights
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
@@ -255,38 +335,127 @@ const InsightsPage = () => {
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                Unusual transaction detection
+                Anomaly detection
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
-                Personalized financial nudges
+                Smart recommendations
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Professional Analyzing State */}
+      {/* Analysis Progress */}
       {analyzing && (
-        <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-12 shadow-xl border border-white/20 text-center animate-slide-up">
-          <div className="w-20 h-20 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
-            <Brain className="w-10 h-10 text-white" />
-          </div>
-          <h3 className="text-3xl font-black bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent mb-4">Analyzing Your Financial Data</h3>
-          <p className="text-gray-600 mb-6 text-lg">Our AI is processing your transactions and generating personalized insights...</p>
-          <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-6 border border-purple-100">
-            <div className="flex items-center justify-center space-x-3 mb-4">
-              <div className="w-3 h-3 bg-purple-500 rounded-full animate-bounce"></div>
-              <div className="w-3 h-3 bg-indigo-500 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-              <div className="w-3 h-3 bg-purple-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+        <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-8 shadow-xl border border-white/20 animate-slide-up">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="w-16 h-16 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+              <Brain className="w-8 h-8 text-white" />
             </div>
-            <p className="text-sm font-semibold text-purple-700">This may take a few moments...</p>
+            <div>
+              <h3 className="text-2xl font-black bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">AI Analysis in Progress</h3>
+              <p className="text-gray-600 font-medium">{analysisStatus || 'Processing your financial data...'}</p>
+            </div>
+          </div>
+          
+          <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-4 border border-purple-100">
+            <div className="flex items-center justify-center space-x-2">
+              <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce"></div>
+              <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+              <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Live Results During Analysis */}
+      {data && analyzing && (
+        <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl border border-white/20 overflow-hidden animate-slide-up">
+          <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-6">
+            <h3 className="text-2xl font-black bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent mb-2">Live Analysis Results</h3>
+            <p className="text-gray-600">Results appear as analysis progresses</p>
+          </div>
+          
+          <div className="p-6 space-y-6">
+            {/* Summary Section */}
+            <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-6 border border-purple-100">
+              <h4 className="text-lg font-bold text-purple-800 mb-3 flex items-center gap-2">
+                <DollarSign className="w-5 h-5" />
+                Summary Analysis
+              </h4>
+              <p className="text-gray-700">
+                {data.overall_health.summary || 'Analyzing spending patterns...'}
+              </p>
+              {data.spending_breakdown.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  {data.spending_breakdown.slice(0, 3).map((category, index) => (
+                    <div key={index} className="flex justify-between items-center bg-white/70 rounded-lg p-3">
+                      <span className="font-medium">{category.category || category.name}</span>
+                      <span className="font-bold text-purple-600">₹{(category.amount || category.total || 0).toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            {/* Other sections show as they complete */}
+            {data.recurring_patterns.length > 0 && (
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-100">
+                <h4 className="text-lg font-bold text-blue-800 mb-3 flex items-center gap-2">
+                  <Repeat className="w-5 h-5" />
+                  Recurring Patterns ({data.recurring_patterns.length})
+                </h4>
+                <div className="space-y-2">
+                  {data.recurring_patterns.slice(0, 2).map((pattern, index) => (
+                    <div key={index} className="bg-white/70 rounded-lg p-3">
+                      <div className="font-medium">{pattern.merchant}</div>
+                      <div className="text-sm text-gray-600">{pattern.frequency}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {data.anomalies.length > 0 && (
+              <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-6 border border-amber-100">
+                <h4 className="text-lg font-bold text-amber-800 mb-3 flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5" />
+                  Anomalies Detected ({data.anomalies.length})
+                </h4>
+                <div className="space-y-2">
+                  {data.anomalies.slice(0, 2).map((anomaly, index) => (
+                    <div key={index} className="bg-white/70 rounded-lg p-3">
+                      <div className="font-medium">{anomaly.reason}</div>
+                      <div className="text-sm text-gray-600">₹{anomaly.amount} • {anomaly.category}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {data.nudges.length > 0 && (
+              <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-100">
+                <h4 className="text-lg font-bold text-green-800 mb-3 flex items-center gap-2">
+                  <Target className="w-5 h-5" />
+                  Recommendations ({data.nudges.length})
+                </h4>
+                <div className="space-y-2">
+                  {data.nudges.slice(0, 2).map((nudge, index) => (
+                    <div key={index} className="bg-white/70 rounded-lg p-3">
+                      <div className="font-medium">{nudge.message}</div>
+                      <div className="text-sm text-gray-600">{nudge.type}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
 
       {/* Data Available */}
-      {data && (
+      {data && !analyzing && (
         <>
           {/* Professional Tab Navigation */}
           <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl border border-white/20 overflow-hidden animate-slide-up">
@@ -334,8 +503,13 @@ const InsightsPage = () => {
                   <div className="bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50 rounded-2xl p-8 border border-purple-100 shadow-lg">
                     <div className="prose prose-lg max-w-none">
                       <p className="text-gray-800 leading-relaxed text-lg font-medium">
-                        {data.overall_health.summary}
+                        {data.overall_health.summary || 'Analysis in progress...'}
                       </p>
+                      {data.overall_health.analysis && (
+                        <p className="text-gray-700 mt-4">
+                          {data.overall_health.analysis}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -383,14 +557,23 @@ const InsightsPage = () => {
 
               {activeSection === 'recurring' && (
                 <div className="space-y-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-lg">
-                      <Repeat className="w-6 h-6 text-white" />
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-lg">
+                        <Repeat className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-3xl font-bold text-gray-900">Recurring Patterns</h3>
+                        <p className="text-gray-600 mt-1">Identified spending patterns and subscriptions</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-3xl font-bold text-gray-900">Recurring Patterns</h3>
-                      <p className="text-gray-600 mt-1">Identified spending patterns and subscriptions</p>
-                    </div>
+                    <button
+                      onClick={fetchRecurringPatterns}
+                      disabled={accountFilter === 'all' || !accountFilter}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
+                    >
+                      {accountFilter === 'all' || !accountFilter ? 'Select Account' : 'Load Patterns'}
+                    </button>
                   </div>
                   
                   <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
@@ -421,14 +604,23 @@ const InsightsPage = () => {
 
               {activeSection === 'anomalies' && (
                 <div className="space-y-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl shadow-lg">
-                      <AlertTriangle className="w-6 h-6 text-white" />
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl shadow-lg">
+                        <AlertTriangle className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-3xl font-bold text-gray-900">Anomalies & Alerts</h3>
+                        <p className="text-gray-600 mt-1">Unusual patterns and potential issues detected</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-3xl font-bold text-gray-900">Anomalies & Alerts</h3>
-                      <p className="text-gray-600 mt-1">Unusual patterns and potential issues detected</p>
-                    </div>
+                    <button
+                      onClick={fetchAnomalies}
+                      disabled={accountFilter === 'all' || !accountFilter}
+                      className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
+                    >
+                      {accountFilter === 'all' || !accountFilter ? 'Select Account' : 'Load Anomalies'}
+                    </button>
                   </div>
                   
                   <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">

@@ -371,6 +371,17 @@ export default function ImportPage() {
         )}
       </div>
 
+      {/* View Transactions Button */}
+      <div className="bg-white rounded-2xl shadow p-6 text-center">
+        <h3 className="text-xl font-bold mb-4">Ready to View Your Transactions?</h3>
+        <p className="text-gray-600 mb-6">Once you've imported your data, view and analyze your transactions</p>
+        <button
+          onClick={() => window.location.href = '/app/transactions'}
+          className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-4 rounded-xl font-bold shadow-lg transition-all duration-200"
+        >
+          View Transactions
+        </button>
+      </div>
 
     </div>
   );

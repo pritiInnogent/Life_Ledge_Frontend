@@ -8,6 +8,7 @@ class ApiService {
     this.api = axios.create({
       baseURL: API_BASE_URL,
       headers: { "Content-Type": "application/json" },
+      withCredentials: true
     });
 
     // Add token automatically
@@ -89,7 +90,7 @@ class ApiService {
   uploadProfilePicture(file) {
     const formData = new FormData();
     formData.append("file", file);
-    return this.api.post("/api/user/profile-pic", formData, {
+    return this.api.post("/user/profile-pic", formData, {
       headers: { "Content-Type": "multipart/form-data" }
     });
   }
@@ -143,6 +144,14 @@ class ApiService {
 
   addTransaction(data) {
     return this.api.post("/transactions", data);
+  }
+
+  deleteTransaction(id) {
+    return this.api.delete(`/transactions/${id}`);
+  }
+
+  deleteAllTransactions() {
+    return this.api.delete("/transactions/delete-all");
   }
 
   // PDF IMPORT
@@ -250,39 +259,28 @@ class ApiService {
     return await this.api.post("/user/verify-2fa", { code });
   }
 
-  // AI INSIGHTS
-  async getInsightsStatus() {
-    return await this.api.get("/ai/insights/status");
+  // AI INSIGHTS - New endpoints
+  async startSummaryAnalysis() {
+    return await this.api.post('/ai/summary');
   }
 
-  async getLatestInsights() {
-    return await this.api.get("/ai/latest");
+  async getAnalysisStatus() {
+    return await this.api.get('/ai/status');
   }
 
-  async analyzeFinancialData() {
-    return await this.api.post("/ai/analyze");
+  async startRecurringAnalysis() {
+    return await this.api.post('/ai/recurring');
   }
 
-  async getCategoryBreakdown() {
-    return await this.api.get("/ai/category-breakdown");
-  }
-
-  async getRecurringPatterns() {
-    return await this.api.get("/ai/recurring-patterns");
-  }
-
-  async getAnomalies() {
-    return await this.api.get("/ai/anomalies");
-  }
-
-  async getNudges() {
-    return await this.api.get("/ai/nudges");
+  async getRecurringPatterns(accountId) {
+    return await this.api.get(`/recurring/account/${accountId}`);
   }
 
   // ANALYTICS
-  async getLatestAnalytics() {
+  async getLatestAnalytics(accountId) {
     try {
-      return await this.api.get("/analytics/latest");
+      const url = accountId ? `/analytics/latest?accountId=${accountId}` : "/analytics/latest";
+      return await this.api.get(url);
     } catch (error) {
       console.log('Analytics API not available, using mock data');
       // Import mock data for testing

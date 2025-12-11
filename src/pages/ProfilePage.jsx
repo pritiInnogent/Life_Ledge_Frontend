@@ -14,6 +14,7 @@ import {
 
 import apiService from "../services/api";
 import { useTheme } from "../contexts/ThemeContext";
+import { useAuth } from "../contexts/AuthContext";
 import "../styles/ProfilePage.css";
 
 export default function ProfilePage() {
@@ -21,6 +22,7 @@ export default function ProfilePage() {
   // STATES
   // ----------------------------
   const { darkMode, toggleDarkMode } = useTheme();
+  const { updateUser } = useAuth();
   const [profile, setProfile] = useState({
     name: "",
     email: "",
@@ -166,7 +168,12 @@ export default function ProfilePage() {
       const response = await apiService.uploadProfilePicture(file);
 
       // Update profile with Cloudinary URL
-      setProfile((prev) => ({ ...prev, profilePicUrl: response.profilePicUrl || response.url }));
+      const profilePicUrl = response.profilePicUrl || response.url;
+      setProfile((prev) => ({ ...prev, profilePicUrl }));
+      
+      // Update user context with new profile picture
+      updateUser({ profilePicture: profilePicUrl, profilePicUrl: profilePicUrl });
+      
       setSuccess("Profile picture updated!");
     } catch (err) {
       console.error('Upload error:', err);

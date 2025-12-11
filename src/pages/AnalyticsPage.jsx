@@ -14,10 +14,19 @@ const AnalyticsPage = () => {
 
   useEffect(() => {
     if (user?.userId) {
-      loadAnalyticsData()
       loadAccounts()
     }
   }, [user])
+
+  useEffect(() => {
+    setData(null)
+    setError(null)
+    if (accountFilter !== 'all' && accountFilter) {
+      loadAnalyticsData()
+    } else {
+      setLoading(false)
+    }
+  }, [accountFilter])
 
   const loadAccounts = async () => {
     try {
@@ -29,10 +38,12 @@ const AnalyticsPage = () => {
   }
 
   const loadAnalyticsData = async () => {
+    if (accountFilter === 'all' || !accountFilter) return
+    
     try {
       setLoading(true)
       setError(null)
-      const response = await apiService.getLatestAnalytics()
+      const response = await apiService.getLatestAnalytics(accountFilter)
       console.log('Analytics API Response:', response)
       const analyticsData = response.analytics || response
       setData(transformAnalyticsData(analyticsData))
@@ -107,20 +118,83 @@ const AnalyticsPage = () => {
   }
 
   const getCategoryColor = (name, index) => {
-    const colors = ['#8B5CF6', '#06B6D4', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#6B7280', '#84CC16']
+    const colors = ['#8B5CF6', '#A855F7', '#C084FC', '#DDD6FE', '#06B6D4', '#0EA5E9', '#10B981', '#F59E0B', '#EF4444', '#EC4899']
     return colors[index % colors.length]
   }
 
   if (loading) {
-    return <div className="flex justify-center py-20 text-lg">Loading analytics...</div>
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-6">
+        <div className="flex justify-center py-20 text-lg">Loading analytics...</div>
+      </div>
+    )
+  }
+
+  if (accountFilter === 'all' || !accountFilter) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8 animate-fade-in">
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-2">Filter by Bank Account</label>
+            <select
+              value={accountFilter}
+              onChange={(e) => setAccountFilter(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+            >
+              <option value="all">Select Bank Account</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.bankName} ••••{account.last4Digits}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        
+        {/* Select Account Message */}
+        <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-12 shadow-xl border border-white/20 text-center animate-slide-up">
+          <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <BarChart3 className="w-10 h-10 text-white" />
+          </div>
+          <h3 className="text-3xl font-black bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-4">Select Bank Account</h3>
+          <p className="text-gray-600 mb-8 text-lg">Choose a specific bank account to view detailed analytics and insights</p>
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-100">
+            <p className="text-sm font-semibold text-gray-700 mb-4">Analytics will show:</p>
+            <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                Monthly spending timeline
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                Category breakdown
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                Top merchants analysis
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                Spending patterns & trends
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (!data) {
-    return <div className="text-center py-20 text-gray-500">No data available</div>
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-6">
+        <div className="text-center py-20 text-gray-500">No data available</div>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-6 space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50 p-6 space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between mb-8 animate-fade-in">
         <div>
@@ -130,7 +204,7 @@ const AnalyticsPage = () => {
             onChange={(e) => setAccountFilter(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
           >
-            <option value="all">All Accounts</option>
+            <option value="all">Select Bank Account</option>
             {accounts.map((account) => (
               <option key={account.id} value={account.id}>
                 {account.bankName} ••••{account.last4Digits}
@@ -143,7 +217,7 @@ const AnalyticsPage = () => {
           <button
           onClick={loadAnalyticsData}
           disabled={loading}
-          className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 disabled:opacity-50 flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
+          className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 disabled:opacity-50 flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
         >
           {loading ? (
             <>
@@ -160,81 +234,86 @@ const AnalyticsPage = () => {
         </div>
       </div>
 
-      {/* Two-column grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
+      {/* Top Row - Monthly Timeline & Categories */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
         {/* Monthly Spending Timeline */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.1s'}}>
-          <h3 className="text-lg font-bold mb-4 text-gray-800 flex items-center gap-2">
-            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+        <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-8 shadow-2xl border border-purple-100/50 hover:shadow-purple-200/50 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.1s'}}>
+          <h3 className="text-xl font-black mb-6 bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent flex items-center gap-3">
+            <div className="w-3 h-3 bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full animate-pulse shadow-lg"></div>
             Monthly Spending Timeline
           </h3>
           <LineChart data={data.monthlyTimeline} />
         </div>
 
+        {/* Top Categories Donut */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-8 shadow-2xl border border-purple-100/50 hover:shadow-purple-200/50 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.2s'}}>
+          <h3 className="text-xl font-black mb-6 bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent flex items-center gap-3">
+            <div className="w-3 h-3 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full animate-pulse shadow-lg"></div>
+            Top Categories
+          </h3>
+          <DonutChart categories={data.categories} />
+        </div>
+      </div>
+
+      {/* Top Merchants - Full Width List */}
+      <div className="bg-gradient-to-br from-white/95 via-indigo-50/30 to-purple-50/50 backdrop-blur-sm rounded-3xl p-8 shadow-2xl border border-indigo-200/30 hover:shadow-indigo-200/40 hover:shadow-2xl transition-all duration-500 animate-slide-up mb-8" style={{animationDelay: '0.3s'}}>
+        <h3 className="text-xl font-black mb-6 bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent flex items-center gap-3">
+          <div className="w-3 h-3 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-full animate-pulse shadow-lg"></div>
+          Top Merchants Leaderboard
+        </h3>
+        <HorizontalBarChart merchants={data.merchants} />
+      </div>
+
+      {/* Bottom Grid - Other Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Burn Rate Projection */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.2s'}}>
-          <h3 className="text-lg font-bold mb-4 text-gray-800 flex items-center gap-2">
-            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-            Burn Rate Projection
+        <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-2xl border border-purple-100/50 hover:shadow-purple-200/50 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.4s'}}>
+          <h3 className="text-lg font-black mb-4 bg-gradient-to-r from-red-500 to-pink-500 bg-clip-text text-transparent flex items-center gap-2">
+            <div className="w-2 h-2 bg-gradient-to-r from-red-500 to-pink-500 rounded-full animate-pulse shadow-lg"></div>
+            Burn Rate
           </h3>
           {error && <div className="text-sm text-red-600 mb-2 animate-bounce">Using fallback data</div>}
           <BurnRateChart burnRate={data.burnRate} />
         </div>
 
-        {/* Top Categories Donut */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.3s'}}>
-          <h3 className="text-lg font-bold mb-4 text-gray-800 flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            Top Categories
-          </h3>
-          <DonutChart categories={data.categories} />
-        </div>
-
-        {/* Top Merchants */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.4s'}}>
-          <h3 className="text-lg font-bold mb-4 text-gray-800 flex items-center gap-2">
-            <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
-            Top Merchants
-          </h3>
-          <HorizontalBarChart merchants={data.merchants} />
-        </div>
-
         {/* Recurring vs One-time */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.5s'}}>
-          <h3 className="text-lg font-bold mb-4 text-gray-800 flex items-center gap-2">
-            <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
-            Recurring vs One-time
+        <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-2xl border border-purple-100/50 hover:shadow-purple-200/50 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.5s'}}>
+          <h3 className="text-lg font-black mb-4 bg-gradient-to-r from-yellow-500 to-orange-500 bg-clip-text text-transparent flex items-center gap-2">
+            <div className="w-2 h-2 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full animate-pulse shadow-lg"></div>
+            Spending Types
           </h3>
           <StackedBarChart data={data.recurringVsOneTime} />
         </div>
 
         {/* Average Cost per Category */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.6s'}}>
-          <h3 className="text-lg font-bold mb-4 text-gray-800 flex items-center gap-2">
-            <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></div>
-            Average Cost per Category
+        <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-2xl border border-purple-100/50 hover:shadow-purple-200/50 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.6s'}}>
+          <h3 className="text-lg font-black mb-4 bg-gradient-to-r from-cyan-500 to-blue-500 bg-clip-text text-transparent flex items-center gap-2">
+            <div className="w-2 h-2 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full animate-pulse shadow-lg"></div>
+            Avg. Costs
           </h3>
           <CategoryAverageChart categories={data.categories} />
         </div>
       </div>
 
-      {/* Full-width Year-over-Year */}
-      <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.7s'}}>
-        <h3 className="text-lg font-bold mb-4 text-gray-800 flex items-center gap-2">
-          <div className="w-2 h-2 bg-teal-500 rounded-full animate-pulse"></div>
-          Year-over-Year Comparison
-        </h3>
-        <YearOverYearChart data={data.yearOverYear} monthlyData={data.monthlyTimeline} />
-      </div>
+      {/* Bottom Full-width Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+        {/* Year-over-Year Comparison */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-2xl border border-purple-100/50 hover:shadow-purple-200/50 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.7s'}}>
+          <h3 className="text-lg font-black mb-4 bg-gradient-to-r from-teal-500 to-emerald-500 bg-clip-text text-transparent flex items-center gap-2">
+            <div className="w-2 h-2 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-full animate-pulse shadow-lg"></div>
+            Year-over-Year
+          </h3>
+          <YearOverYearChart data={data.yearOverYear} monthlyData={data.monthlyTimeline} />
+        </div>
 
-      {/* Averages Summary */}
-      <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.8s'}}>
-        <h3 className="text-lg font-bold mb-4 text-gray-800 flex items-center gap-2">
-          <div className="w-2 h-2 bg-pink-500 rounded-full animate-pulse"></div>
-          Spending Averages
-        </h3>
-        <AveragesChart averages={data.averages} />
+        {/* Spending Averages */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-2xl border border-purple-100/50 hover:shadow-purple-200/50 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.8s'}}>
+          <h3 className="text-lg font-black mb-4 bg-gradient-to-r from-pink-500 to-rose-500 bg-clip-text text-transparent flex items-center gap-2">
+            <div className="w-2 h-2 bg-gradient-to-r from-pink-500 to-rose-500 rounded-full animate-pulse shadow-lg"></div>
+            Spending Averages
+          </h3>
+          <AveragesChart averages={data.averages} />
+        </div>
       </div>
     </div>
   )
@@ -242,6 +321,8 @@ const AnalyticsPage = () => {
 
 // Chart Components
 const LineChart = ({ data }) => {
+  const [hoveredPoint, setHoveredPoint] = React.useState(null)
+  
   if (!data || data.length === 0) {
     return <div className="h-48 flex items-center justify-center text-gray-500 animate-pulse">No data available</div>
   }
@@ -254,7 +335,7 @@ const LineChart = ({ data }) => {
   }
   
   return (
-    <div className="h-48 animate-fade-in">
+    <div className="h-48 animate-fade-in relative">
       <svg viewBox="0 0 400 150" className="w-full h-full">
         <defs>
           <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
@@ -297,13 +378,34 @@ const LineChart = ({ data }) => {
             key={i}
             cx={(i / (validData.length - 1)) * 400}
             cy={150 - ((d.amount || 0) / maxAmount) * 120}
-            r="4"
+            r={hoveredPoint === i ? "6" : "4"}
             fill="#3B82F6"
-            className="animate-bounce-in hover:r-6 transition-all cursor-pointer"
+            className="animate-bounce-in transition-all cursor-pointer"
             style={{animationDelay: `${i * 0.1}s`}}
+            onMouseEnter={() => setHoveredPoint(i)}
+            onMouseLeave={() => setHoveredPoint(null)}
           />
         ))}
       </svg>
+      
+      {/* Tooltip */}
+      {hoveredPoint !== null && (
+        <div 
+          className="absolute bg-gray-900 text-white px-3 py-2 rounded-lg text-sm font-medium shadow-lg z-10 pointer-events-none animate-fade-in"
+          style={{
+            left: `${(hoveredPoint / (validData.length - 1)) * 100}%`,
+            top: `${((maxAmount - validData[hoveredPoint].amount) / maxAmount) * 75}%`,
+            transform: 'translate(-50%, -100%)',
+            marginTop: '-8px'
+          }}
+        >
+          <div className="text-center">
+            <div className="font-bold">{validData[hoveredPoint].month}</div>
+            <div className="text-blue-300">₹{Math.round(validData[hoveredPoint].amount / 1000)}K</div>
+          </div>
+          <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+        </div>
+      )}
       
       {/* Labels */}
       <div className="flex justify-between mt-2 text-xs text-gray-500">
@@ -357,13 +459,15 @@ const DonutChart = ({ categories }) => {
                 strokeDasharray={strokeDasharray}
                 strokeDashoffset={strokeDashoffset}
                 fill="transparent"
+                className="animate-draw-circle"
+                style={{animationDelay: `${i * 0.2}s`}}
               />
             )
           })}
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-center">
-            <div className="text-xl font-bold">₹{Math.round(total / 1000)}K</div>
+          <div className="text-center animate-fade-in" style={{animationDelay: '0.5s'}}>
+            <div className="text-xl font-bold animate-bounce-in" style={{animationDelay: '0.8s'}}>₹{Math.round(total / 1000)}K</div>
             <div className="text-xs text-gray-500">Total</div>
           </div>
         </div>
@@ -371,11 +475,11 @@ const DonutChart = ({ categories }) => {
       
       <div className="space-y-2">
         {categories.map((cat, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }}></div>
+          <div key={i} className="flex items-center gap-2 animate-slide-right hover:scale-105 transition-all duration-300 cursor-pointer group" style={{animationDelay: `${i * 0.1}s`}}>
+            <div className="w-3 h-3 rounded-full animate-pulse group-hover:scale-125 transition-transform" style={{ backgroundColor: cat.color }}></div>
             <div className="text-sm">
-              <div className="font-medium">{cat.name}</div>
-              <div className="text-gray-500">₹{Math.round(cat.amount).toLocaleString()}</div>
+              <div className="font-medium group-hover:text-purple-600 transition-colors">{cat.name}</div>
+              <div className="text-gray-500 group-hover:text-gray-700 transition-colors">₹{Math.round(cat.amount).toLocaleString()}</div>
             </div>
           </div>
         ))}
@@ -389,24 +493,48 @@ const HorizontalBarChart = ({ merchants }) => {
     return <div className="h-32 flex items-center justify-center text-gray-500 animate-pulse">No merchant data</div>
   }
   
-  const maxAmount = Math.max(...merchants.map(m => m.amount || 0), 1)
+  const gradients = [
+    'from-purple-500 to-indigo-500',
+    'from-indigo-500 to-blue-500', 
+    'from-blue-500 to-cyan-500',
+    'from-cyan-500 to-teal-500',
+    'from-teal-500 to-emerald-500'
+  ]
+  
+  const getMerchantIcon = (name) => {
+    if (!name) return '🏪'
+    const icons = {
+      'swiggy': '🍔', 'zomato': '🍕', 'uber': '🚗', 'ola': '🚕', 'amazon': '📦',
+      'flipkart': '🛒', 'paytm': '💳', 'gpay': '💰', 'phonepe': '📱', 'netflix': '🎬',
+      'spotify': '🎵', 'youtube': '📺', 'starbucks': '☕', 'mcdonald': '🍟', 'kfc': '🍗'
+    }
+    const key = name.toLowerCase()
+    return icons[key] || name.charAt(0).toUpperCase()
+  }
   
   return (
-    <div className="space-y-3">
-      {merchants.map((merchant, i) => (
-        <div key={i} className="flex items-center gap-3 animate-slide-right" style={{animationDelay: `${i * 0.1}s`}}>
-          <div className="w-20 text-sm font-medium truncate">{merchant.name || 'Unknown'}</div>
-          <div className="flex-1 bg-gray-100 rounded-full h-6 relative overflow-hidden">
-            <div
-              className="bg-gradient-to-r from-blue-500 to-purple-500 h-6 rounded-full flex items-center justify-end pr-2 animate-expand-bar transition-all duration-1000 hover:from-blue-600 hover:to-purple-600"
-              style={{ 
-                width: `${((merchant.amount || 0) / maxAmount) * 100}%`,
-                animationDelay: `${i * 0.2}s`
-              }}
-            >
-              <span className="text-xs text-white font-medium animate-fade-in" style={{animationDelay: `${i * 0.3}s`}}>
-                ₹{Math.round((merchant.amount || 0) / 1000)}K
-              </span>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {merchants.slice(0, 6).map((merchant, i) => (
+        <div key={i} className="group animate-slide-right hover:scale-105 transition-all duration-300" style={{animationDelay: `${i * 0.1}s`}}>
+          <div className="flex items-center gap-3 p-4 bg-white/80 rounded-2xl border border-purple-100/50 shadow-md hover:shadow-lg backdrop-blur-sm">
+            {/* Merchant Avatar */}
+            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${gradients[i % gradients.length]} flex items-center justify-center text-white font-bold shadow-md group-hover:scale-110 transition-transform`}>
+              {getMerchantIcon(merchant.name)}
+            </div>
+            
+            {/* Merchant Info */}
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-gray-900 truncate text-sm group-hover:text-purple-600 transition-colors">
+                {merchant.name || 'Unknown'}
+              </div>
+              <div className="flex items-center justify-between mt-1">
+                <span className="text-xs text-gray-500">
+                  {merchant.count || 0} txns
+                </span>
+                <span className={`text-sm font-bold bg-gradient-to-r ${gradients[i % gradients.length]} bg-clip-text text-transparent`}>
+                  ₹{Math.round((merchant.amount || 0) / 1000)}K
+                </span>
+              </div>
             </div>
           </div>
         </div>

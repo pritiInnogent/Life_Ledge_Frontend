@@ -60,7 +60,6 @@ export default function App() {
           <Route index element={<Navigate to="import" replace />} />
           <Route path="dashboard" element={<AnalyticsPage />} />
           <Route path="transactions" element={<TransactionsPage />} />
-          <Route path="analytics" element={<AnalyticsPage />} />
           <Route path="categories" element={<CategoriesPage />} />
           <Route path="recurring" element={<RecurringPage />} />
           <Route path="goals" element={<GoalsPage />} />
