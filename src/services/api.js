@@ -181,6 +181,64 @@ class ApiService {
   getAnomaliesData(accountId) {
     return this.api.get(`/anomalies/account/${accountId}`);
   }
+
+  /* ==============================
+       FILE PROCESSING
+  =============================== */
+  processPdf(file, accountNumber, password = '') {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('accountNumber', accountNumber);
+    if (password) {
+      formData.append('password', password);
+    }
+    
+    return this.api.post('/pdf/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  }
+
+  processCsv(file, accountNumber) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('accountNumber', accountNumber);
+    
+    return this.api.post('/import/csv', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  }
+
+  addTransaction(transactionData) {
+    return this.api.post('/transactions', transactionData);
+  }
+
+  /* ==============================
+         ANALYTICS
+  =============================== */
+  getLatestAnalytics(accountId) {
+    return this.api.get(`/analytics/latest?accountId=${accountId}`);
+  }
+
+  // Dashboard related methods
+  getRecentTransactions() {
+    return this.api.get('/transactions/recent');
+  }
+
+  getTotalSpent() {
+    return this.api.get('/transactions/total-spent');
+  }
+
+  getTransactionCount() {
+    return this.api.get('/transactions/count');
+  }
+
+  getLatestInsights() {
+    return this.api.get('/insights/latest');
+  }
+
+  getUserGoals() {
+    return this.api.get('/goals');
+  }
 }
 
 export default new ApiService();

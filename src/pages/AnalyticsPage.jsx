@@ -19,11 +19,11 @@ const AnalyticsPage = () => {
   }, [user])
 
   useEffect(() => {
-    setData(null)
-    setError(null)
     if (accountFilter !== 'all' && accountFilter) {
-      loadAnalyticsData()
+      loadAnalyticsData(accountFilter)
     } else {
+      setData(null)
+      setError(null)
       setLoading(false)
     }
   }, [accountFilter])
@@ -37,20 +37,32 @@ const AnalyticsPage = () => {
     }
   }
 
-  const loadAnalyticsData = async () => {
-    if (accountFilter === 'all' || !accountFilter) return
+  const loadAnalyticsData = async (accountId) => {
+    if (!accountId || accountId === 'all') return
     
     try {
       setLoading(true)
       setError(null)
-      const response = await apiService.getLatestAnalytics(accountFilter)
-      console.log('Analytics API Response:', response)
+      setData(null)
+      
+      const response = await apiService.getLatestAnalytics(accountId)
       const analyticsData = response.analytics || response
-      setData(transformAnalyticsData(analyticsData))
+      
+      const transformedData = transformAnalyticsData(analyticsData)
+      const hasData = transformedData.monthlyTimeline?.length > 0 || 
+                     transformedData.categories?.length > 0 || 
+                     transformedData.merchants?.length > 0
+      
+      if (!hasData) {
+        setError('No transaction data found for this account')
+        setData(null)
+      } else {
+        setData(transformedData)
+      }
     } catch (error) {
       console.error('Error loading analytics:', error)
       setError(error.message)
-      setData(getFallbackData())
+      setData(null)
     } finally {
       setLoading(false)
     }
@@ -95,27 +107,7 @@ const AnalyticsPage = () => {
     }
   }
 
-  const getFallbackData = () => {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    return {
-      monthlyTimeline: months.map(month => ({ month, amount: Math.random() * 50000 + 20000 })),
-      categories: [
-        { name: 'Food', amount: 35000, count: 45, color: '#8B5CF6' },
-        { name: 'Transport', amount: 25000, count: 30, color: '#06B6D4' },
-        { name: 'Entertainment', amount: 20000, count: 25, color: '#10B981' }
-      ],
-      merchants: [
-        { name: 'Swiggy', amount: 15000, count: 25 },
-        { name: 'Uber', amount: 12000, count: 20 }
-      ],
-      recurringVsOneTime: [
-        { name: 'Recurring', amount: 40000, color: '#8B5CF6' },
-        { name: 'One-time', amount: 30000, color: '#06B6D4' }
-      ],
-      burnRate: { daily: 2000, projected: 60000, current: 45000, daysLeft: 15 },
-      yearOverYear: { current: 500000, previous: 450000, change: 11.1, trend: 'increasing' }
-    }
-  }
+
 
   const getCategoryColor = (name, index) => {
     const colors = ['#8B5CF6', '#A855F7', '#C084FC', '#DDD6FE', '#06B6D4', '#0EA5E9', '#10B981', '#F59E0B', '#EF4444', '#EC4899']
@@ -187,8 +179,59 @@ const AnalyticsPage = () => {
 
   if (!data) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-6">
-        <div className="text-center py-20 text-gray-500">No data available</div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8 animate-fade-in">
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-2">Filter by Bank Account</label>
+            <select
+              value={accountFilter}
+              onChange={(e) => setAccountFilter(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+            >
+              <option value="all">Select Bank Account</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.bankName} ••••{account.last4Digits}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        
+        {/* No Data Message */}
+        <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-12 shadow-xl border border-white/20 text-center animate-slide-up">
+          <div className="w-20 h-20 bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <BarChart3 className="w-10 h-10 text-white" />
+          </div>
+          <h3 className="text-3xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent mb-4">No Transaction Data</h3>
+          <p className="text-gray-600 mb-8 text-lg">
+            {error ? `${error}. Add transactions to this account to see analytics.` : 'Add transactions to this account to see detailed analytics and insights'}
+          </p>
+          <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-2xl p-6 border border-orange-200">
+            <p className="text-sm font-semibold text-gray-700 mb-4">To see analytics, you need to:</p>
+            <div className="grid grid-cols-1 gap-3 text-sm text-gray-600">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                Import bank statements or CSV files
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                Add manual transactions
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                Have at least a few transactions to analyze
+              </div>
+            </div>
+            <button
+              onClick={() => window.location.href = '/app/import'}
+              className="mt-6 bg-gradient-to-r from-orange-500 to-red-500 text-white px-6 py-3 rounded-xl font-semibold hover:from-orange-600 hover:to-red-600 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+            >
+              Add Transactions
+            </button>
+          </div>
+        </div>
       </div>
     )
   }
@@ -213,9 +256,20 @@ const AnalyticsPage = () => {
           </select>
         </div>
         <div className="flex items-center gap-4">
-          {error && <p className="text-sm text-orange-600 animate-pulse">Using fallback data - Backend unavailable</p>}
+          {error && <p className="text-sm text-red-600 animate-pulse">Error: {error}</p>}
           <button
-          onClick={loadAnalyticsData}
+          onClick={() => {
+            console.log('Manual refresh clicked')
+            console.log('Current accountFilter:', accountFilter)
+            console.log('Current accounts:', accounts)
+            if (accountFilter && accountFilter !== 'all') {
+              console.log('Calling analytics API directly...')
+              apiService.getLatestAnalytics(accountFilter)
+                .then(response => console.log('Direct API response:', response))
+                .catch(error => console.error('Direct API error:', error))
+            }
+            loadAnalyticsData()
+          }}
           disabled={loading}
           className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 disabled:opacity-50 flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
         >
@@ -227,7 +281,7 @@ const AnalyticsPage = () => {
           ) : (
             <>
               <TrendingUp className="w-4 h-4" />
-              Refresh
+              Test API Call
             </>
           )}
         </button>
@@ -272,7 +326,6 @@ const AnalyticsPage = () => {
             <div className="w-2 h-2 bg-gradient-to-r from-red-500 to-pink-500 rounded-full animate-pulse shadow-lg"></div>
             Burn Rate
           </h3>
-          {error && <div className="text-sm text-red-600 mb-2 animate-bounce">Using fallback data</div>}
           <BurnRateChart burnRate={data.burnRate} />
         </div>
 
@@ -737,4 +790,4 @@ const AveragesChart = ({ averages }) => {
   )
 }
 
-export default AnalyticsPage
+export default AnalyticsPage;

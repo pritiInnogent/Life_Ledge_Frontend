@@ -12,13 +12,58 @@ export default function LoginPage() {
     phoneNumber: "",
   });
   const [error, setError] = useState("");
+  const [validationErrors, setValidationErrors] = useState({});
 
   const { login, signup } = useAuth();
   const navigate = useNavigate();
 
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validatePhone = (phone) => {
+    const phoneRegex = /^[+]?[0-9]{10,15}$/;
+    return phoneRegex.test(phone.replace(/\s/g, ''));
+  };
+
+  const validateForm = () => {
+    const errors = {};
+
+    if (!isLogin) {
+      if (!formData.name.trim()) {
+        errors.name = "Name is required";
+      }
+      
+      if (formData.phoneNumber && !validatePhone(formData.phoneNumber)) {
+        errors.phoneNumber = "Invalid phone number format";
+      }
+    }
+
+    if (!formData.email) {
+      errors.email = "Email is required";
+    } else if (!validateEmail(formData.email)) {
+      errors.email = "Invalid email format";
+    }
+
+    if (!formData.password) {
+      errors.password = "Password is required";
+    } else if (formData.password.length < 6) {
+      errors.password = "Password must be at least 6 characters";
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setValidationErrors({});
+
+    if (!validateForm()) {
+      return;
+    }
 
     try {
       if (isLogin) {
@@ -108,9 +153,14 @@ export default function LoginPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, name: e.target.value })
                     }
-                    className="w-full p-3 rounded-xl border"
+                    className={`w-full p-3 rounded-xl border ${
+                      validationErrors.name ? 'border-red-500' : ''
+                    }`}
                     placeholder="John Doe"
                   />
+                  {validationErrors.name && (
+                    <p className="text-red-500 text-sm mt-1">{validationErrors.name}</p>
+                  )}
                 </div>
 
                 <div>
@@ -125,9 +175,14 @@ export default function LoginPage() {
                         phoneNumber: e.target.value,
                       })
                     }
-                    className="w-full p-3 rounded-xl border"
+                    className={`w-full p-3 rounded-xl border ${
+                      validationErrors.phoneNumber ? 'border-red-500' : ''
+                    }`}
                     placeholder="+91 9876543210"
                   />
+                  {validationErrors.phoneNumber && (
+                    <p className="text-red-500 text-sm mt-1">{validationErrors.phoneNumber}</p>
+                  )}
                 </div>
               </>
             )}
@@ -140,9 +195,14 @@ export default function LoginPage() {
                 onChange={(e) =>
                   setFormData({ ...formData, email: e.target.value })
                 }
-                className="w-full p-3 rounded-xl border"
+                className={`w-full p-3 rounded-xl border ${
+                  validationErrors.email ? 'border-red-500' : ''
+                }`}
                 placeholder="you@example.com"
               />
+              {validationErrors.email && (
+                <p className="text-red-500 text-sm mt-1">{validationErrors.email}</p>
+              )}
             </div>
 
             <div>
@@ -153,9 +213,14 @@ export default function LoginPage() {
                 onChange={(e) =>
                   setFormData({ ...formData, password: e.target.value })
                 }
-                className="w-full p-3 rounded-xl border"
+                className={`w-full p-3 rounded-xl border ${
+                  validationErrors.password ? 'border-red-500' : ''
+                }`}
                 placeholder="••••••••"
               />
+              {validationErrors.password && (
+                <p className="text-red-500 text-sm mt-1">{validationErrors.password}</p>
+              )}
             </div>
 
             <button
