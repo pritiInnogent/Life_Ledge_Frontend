@@ -73,7 +73,7 @@ export default function DashboardPage() {
   const [recentTransactions, setRecentTransactions] = useState([])
   const [topCategory, setTopCategory] = useState(null)
   const [recurringPatterns, setRecurringPatterns] = useState([])
-  const [aiInsights, setAiInsights] = useState(null)
+
   const [userBudget, setUserBudget] = useState(0)
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
@@ -178,16 +178,7 @@ export default function DashboardPage() {
         setUserBudget(0)
       }
 
-      // Fetch AI insights
-      try {
-        const insightsResponse = await ApiService.getLatestInsights()
-        if (insightsResponse?.insight?.aiText) {
-          const parsed = JSON.parse(insightsResponse.insight.aiText)
-          setAiInsights(parsed)
-        }
-      } catch (error) {
-        console.error('Error fetching AI insights:', error)
-      }
+
     } catch (error) {
       console.error('Error fetching dashboard data:', error)
     } finally {

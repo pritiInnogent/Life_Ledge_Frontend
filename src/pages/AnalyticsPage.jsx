@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { TrendingUp, Calendar, BarChart3 } from 'lucide-react'
 import apiService from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
-import '../styles/animations.css'
+import '../styles/analytics-animations.css'
 
 const AnalyticsPage = () => {
   const { user } = useAuth()
@@ -106,8 +106,6 @@ const AnalyticsPage = () => {
       averages: analyticsData?.averages || {}
     }
   }
-
-
 
   const getCategoryColor = (name, index) => {
     const colors = ['#8B5CF6', '#A855F7', '#C084FC', '#DDD6FE', '#06B6D4', '#0EA5E9', '#10B981', '#F59E0B', '#EF4444', '#EC4899']
@@ -237,7 +235,7 @@ const AnalyticsPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50 p-6 space-y-8">
+    <div className="min-h-screen bg-gray-50 p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-8 animate-fade-in">
         <div>
@@ -258,51 +256,30 @@ const AnalyticsPage = () => {
         <div className="flex items-center gap-4">
           {error && <p className="text-sm text-red-600 animate-pulse">Error: {error}</p>}
           <button
-          onClick={() => {
-            console.log('Manual refresh clicked')
-            console.log('Current accountFilter:', accountFilter)
-            console.log('Current accounts:', accounts)
-            if (accountFilter && accountFilter !== 'all') {
-              console.log('Calling analytics API directly...')
-              apiService.getLatestAnalytics(accountFilter)
-                .then(response => console.log('Direct API response:', response))
-                .catch(error => console.error('Direct API error:', error))
-            }
-            loadAnalyticsData()
-          }}
-          disabled={loading}
-          className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 disabled:opacity-50 flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
-        >
-          {loading ? (
-            <>
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              Loading...
-            </>
-          ) : (
-            <>
-              <TrendingUp className="w-4 h-4" />
-              Test API Call
-            </>
-          )}
-        </button>
+            onClick={() => window.print()}
+            className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Download PDF
+          </button>
         </div>
       </div>
 
       {/* Top Row - Monthly Timeline & Categories */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
         {/* Monthly Spending Timeline */}
-        <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-8 shadow-2xl border border-purple-100/50 hover:shadow-purple-200/50 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.1s'}}>
-          <h3 className="text-xl font-black mb-6 bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent flex items-center gap-3">
-            <div className="w-3 h-3 bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full animate-pulse shadow-lg"></div>
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
             Monthly Spending Timeline
           </h3>
           <LineChart data={data.monthlyTimeline} />
         </div>
 
         {/* Top Categories Donut */}
-        <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-8 shadow-2xl border border-purple-100/50 hover:shadow-purple-200/50 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.2s'}}>
-          <h3 className="text-xl font-black mb-6 bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent flex items-center gap-3">
-            <div className="w-3 h-3 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full animate-pulse shadow-lg"></div>
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
             Top Categories
           </h3>
           <DonutChart categories={data.categories} />
@@ -310,10 +287,9 @@ const AnalyticsPage = () => {
       </div>
 
       {/* Top Merchants - Full Width List */}
-      <div className="bg-gradient-to-br from-white/95 via-indigo-50/30 to-purple-50/50 backdrop-blur-sm rounded-3xl p-8 shadow-2xl border border-indigo-200/30 hover:shadow-indigo-200/40 hover:shadow-2xl transition-all duration-500 animate-slide-up mb-8" style={{animationDelay: '0.3s'}}>
-        <h3 className="text-xl font-black mb-6 bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent flex items-center gap-3">
-          <div className="w-3 h-3 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-full animate-pulse shadow-lg"></div>
-          Top Merchants Leaderboard
+      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          Top Merchants
         </h3>
         <HorizontalBarChart merchants={data.merchants} />
       </div>
@@ -321,28 +297,25 @@ const AnalyticsPage = () => {
       {/* Bottom Grid - Other Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Burn Rate Projection */}
-        <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-2xl border border-purple-100/50 hover:shadow-purple-200/50 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.4s'}}>
-          <h3 className="text-lg font-black mb-4 bg-gradient-to-r from-red-500 to-pink-500 bg-clip-text text-transparent flex items-center gap-2">
-            <div className="w-2 h-2 bg-gradient-to-r from-red-500 to-pink-500 rounded-full animate-pulse shadow-lg"></div>
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
             Burn Rate
           </h3>
           <BurnRateChart burnRate={data.burnRate} />
         </div>
 
         {/* Recurring vs One-time */}
-        <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-2xl border border-purple-100/50 hover:shadow-purple-200/50 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.5s'}}>
-          <h3 className="text-lg font-black mb-4 bg-gradient-to-r from-yellow-500 to-orange-500 bg-clip-text text-transparent flex items-center gap-2">
-            <div className="w-2 h-2 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full animate-pulse shadow-lg"></div>
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
             Spending Types
           </h3>
           <StackedBarChart data={data.recurringVsOneTime} />
         </div>
 
         {/* Average Cost per Category */}
-        <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-2xl border border-purple-100/50 hover:shadow-purple-200/50 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.6s'}}>
-          <h3 className="text-lg font-black mb-4 bg-gradient-to-r from-cyan-500 to-blue-500 bg-clip-text text-transparent flex items-center gap-2">
-            <div className="w-2 h-2 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full animate-pulse shadow-lg"></div>
-            Avg. Costs
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            Category Averages
           </h3>
           <CategoryAverageChart categories={data.categories} />
         </div>
@@ -351,18 +324,16 @@ const AnalyticsPage = () => {
       {/* Bottom Full-width Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
         {/* Year-over-Year Comparison */}
-        <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-2xl border border-purple-100/50 hover:shadow-purple-200/50 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.7s'}}>
-          <h3 className="text-lg font-black mb-4 bg-gradient-to-r from-teal-500 to-emerald-500 bg-clip-text text-transparent flex items-center gap-2">
-            <div className="w-2 h-2 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-full animate-pulse shadow-lg"></div>
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
             Year-over-Year
           </h3>
           <YearOverYearChart data={data.yearOverYear} monthlyData={data.monthlyTimeline} />
         </div>
 
         {/* Spending Averages */}
-        <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-2xl border border-purple-100/50 hover:shadow-purple-200/50 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.8s'}}>
-          <h3 className="text-lg font-black mb-4 bg-gradient-to-r from-pink-500 to-rose-500 bg-clip-text text-transparent flex items-center gap-2">
-            <div className="w-2 h-2 bg-gradient-to-r from-pink-500 to-rose-500 rounded-full animate-pulse shadow-lg"></div>
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
             Spending Averages
           </h3>
           <AveragesChart averages={data.averages} />
@@ -375,66 +346,111 @@ const AnalyticsPage = () => {
 // Chart Components
 const LineChart = ({ data }) => {
   const [hoveredPoint, setHoveredPoint] = React.useState(null)
+  const [isLoaded, setIsLoaded] = React.useState(false)
+  
+  React.useEffect(() => {
+    const timer = setTimeout(() => setIsLoaded(true), 100)
+    return () => clearTimeout(timer)
+  }, [])
   
   if (!data || data.length === 0) {
-    return <div className="h-48 flex items-center justify-center text-gray-500 animate-pulse">No data available</div>
+    return <div className="h-64 flex items-center justify-center text-gray-400">No data available</div>
   }
   
   const maxAmount = Math.max(...data.map(d => d.amount || 0), 1)
   const validData = data.filter(d => d.month && d.amount !== undefined)
   
   if (validData.length === 0) {
-    return <div className="h-48 flex items-center justify-center text-gray-500 animate-pulse">No valid data</div>
+    return <div className="h-64 flex items-center justify-center text-gray-400">No valid data</div>
   }
   
+  const points = validData.map((d, i) => ({
+    x: 60 + (i / (validData.length - 1)) * 320,
+    y: 160 - ((d.amount || 0) / maxAmount) * 120,
+    data: d
+  }))
+  
+  const createSmoothPath = (points) => {
+    if (points.length < 2) return ''
+    let path = `M ${points[0].x} ${points[0].y}`
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1]
+      const curr = points[i]
+      const cp1x = prev.x + (curr.x - prev.x) * 0.3
+      const cp2x = curr.x - (curr.x - prev.x) * 0.3
+      path += ` C ${cp1x} ${prev.y}, ${cp2x} ${curr.y}, ${curr.x} ${curr.y}`
+    }
+    return path
+  }
+  
+  const smoothPath = createSmoothPath(points)
+  const areaPath = smoothPath + ` L ${points[points.length - 1].x} 160 L 60 160 Z`
+  
   return (
-    <div className="h-48 animate-fade-in relative">
-      <svg viewBox="0 0 400 150" className="w-full h-full">
+    <div className="h-64 bg-gradient-to-br from-gray-50 to-purple-50 rounded-lg p-4 relative overflow-hidden">
+      <svg viewBox="0 0 440 200" className="w-full h-full">
         <defs>
-          <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.4" />
-            <stop offset="100%" stopColor="#3B82F6" stopOpacity="0.05" />
+          <linearGradient id="lineGradient" x1="0" y1="0" x2="100%" y2="0">
+            <stop offset="0%" stopColor="#8B5CF6" />
+            <stop offset="100%" stopColor="#A855F7" />
           </linearGradient>
-          <filter id="glow">
-            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-            <feMerge> 
-              <feMergeNode in="coloredBlur"/>
-              <feMergeNode in="SourceGraphic"/> 
-            </feMerge>
-          </filter>
+          <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="100%">
+            <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.15" />
+            <stop offset="100%" stopColor="#8B5CF6" stopOpacity="0.02" />
+          </linearGradient>
         </defs>
         
-        {/* Area */}
-        <path
-          d={`M 0 150 ${validData.map((d, i) => 
-            `L ${(i / (validData.length - 1)) * 400} ${150 - ((d.amount || 0) / maxAmount) * 120}`
-          ).join(' ')} L 400 150 Z`}
-          fill="url(#lineGrad)"
-          className="animate-draw-area"
+        {/* Grid lines */}
+        {[60, 100, 140].map(y => (
+          <line key={y} x1="60" y1={y} x2="380" y2={y} stroke="#e2e8f0" strokeWidth="1" strokeDasharray="2,2" />
+        ))}
+        
+        {/* Y-axis labels */}
+        {[0, 33, 66, 100].map((percent) => {
+          const y = 160 - (percent * 1.2)
+          const value = Math.round((maxAmount * percent) / 100)
+          return (
+            <text key={percent} x="50" y={y + 4} textAnchor="end" className="text-xs fill-gray-500">
+              ₹{value > 1000 ? `${Math.round(value/1000)}K` : value}
+            </text>
+          )
+        })}
+        
+        {/* Area fill with animation */}
+        <path 
+          d={areaPath} 
+          fill="url(#areaGradient)"
+          className={`transition-all duration-1000 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
         />
         
-        {/* Line */}
+        {/* Main line with animation */}
         <path
-          d={`M ${validData.map((d, i) => 
-            `${(i / (validData.length - 1)) * 400} ${150 - ((d.amount || 0) / maxAmount) * 120}`
-          ).join(' L ')}`}
-          stroke="#3B82F6"
+          d={smoothPath}
+          stroke="url(#lineGradient)"
           strokeWidth="3"
           fill="none"
-          filter="url(#glow)"
-          className="animate-draw-line"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeDasharray={isLoaded ? "none" : "1000"}
+          strokeDashoffset={isLoaded ? "0" : "1000"}
+          className="transition-all duration-2000 ease-out"
         />
         
-        {/* Points */}
-        {validData.map((d, i) => (
+        {/* Data points with staggered animation */}
+        {points.map((point, i) => (
           <circle
             key={i}
-            cx={(i / (validData.length - 1)) * 400}
-            cy={150 - ((d.amount || 0) / maxAmount) * 120}
+            cx={point.x}
+            cy={point.y}
             r={hoveredPoint === i ? "6" : "4"}
-            fill="#3B82F6"
-            className="animate-bounce-in transition-all cursor-pointer"
-            style={{animationDelay: `${i * 0.1}s`}}
+            fill="#8B5CF6"
+            className={`cursor-pointer transition-all duration-300 ${
+              isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-0'
+            }`}
+            style={{ 
+              transitionDelay: `${500 + i * 100}ms`,
+              transformOrigin: `${point.x}px ${point.y}px`
+            }}
             onMouseEnter={() => setHoveredPoint(i)}
             onMouseLeave={() => setHoveredPoint(null)}
           />
@@ -444,26 +460,26 @@ const LineChart = ({ data }) => {
       {/* Tooltip */}
       {hoveredPoint !== null && (
         <div 
-          className="absolute bg-gray-900 text-white px-3 py-2 rounded-lg text-sm font-medium shadow-lg z-10 pointer-events-none animate-fade-in"
+          className="absolute bg-gray-900 text-white px-3 py-2 rounded-lg text-sm shadow-lg z-20 pointer-events-none"
           style={{
-            left: `${(hoveredPoint / (validData.length - 1)) * 100}%`,
-            top: `${((maxAmount - validData[hoveredPoint].amount) / maxAmount) * 75}%`,
-            transform: 'translate(-50%, -100%)',
-            marginTop: '-8px'
+            left: `${Math.min(Math.max((points[hoveredPoint].x / 440) * 100, 15), 85)}%`,
+            top: `${Math.max((points[hoveredPoint].y / 200) * 100 - 25, 5)}%`,
+            transform: 'translate(-50%, 0)'
           }}
         >
-          <div className="text-center">
-            <div className="font-bold">{validData[hoveredPoint].month}</div>
-            <div className="text-blue-300">₹{Math.round(validData[hoveredPoint].amount / 1000)}K</div>
-          </div>
-          <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+          <div className="font-semibold">{validData[hoveredPoint].month}</div>
+          <div className="text-purple-300">₹{Math.round(validData[hoveredPoint].amount / 1000)}K</div>
         </div>
       )}
       
-      {/* Labels */}
-      <div className="flex justify-between mt-2 text-xs text-gray-500">
+      {/* Fixed X-axis labels */}
+      <div className="flex justify-between mt-3 px-14">
         {validData.map((d, i) => (
-          <span key={i} className="animate-fade-in" style={{animationDelay: `${i * 0.1}s`}}>{d.month}</span>
+          <div key={i} className="text-center flex-1">
+            <div className="text-xs font-medium text-gray-700">
+              {d.month ? (d.month.length > 3 ? d.month.substring(0, 3) : d.month) : `M${i + 1}`}
+            </div>
+          </div>
         ))}
       </div>
     </div>
@@ -471,12 +487,25 @@ const LineChart = ({ data }) => {
 }
 
 const DonutChart = ({ categories }) => {
+  const [isLoaded, setIsLoaded] = React.useState(false)
+  
+  React.useEffect(() => {
+    const timer = setTimeout(() => setIsLoaded(true), 200)
+    return () => clearTimeout(timer)
+  }, [])
+  
   if (!categories || categories.length === 0) {
-    return <div className="h-40 flex items-center justify-center text-gray-500">No category data</div>
+    return <div className="h-64 flex items-center justify-center text-gray-400">No category data</div>
   }
   
-  const total = categories.reduce((sum, cat) => sum + (cat.amount || 0), 0)
-  const size = 160
+  const colorfulColors = ['#8B5CF6', '#06B6D4', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#8B5A2B', '#6366F1', '#84CC16', '#F97316']
+  const enhancedCategories = categories.map((cat, i) => ({
+    ...cat,
+    color: colorfulColors[i % colorfulColors.length]
+  }))
+  
+  const total = enhancedCategories.reduce((sum, cat) => sum + (cat.amount || 0), 0)
+  const size = 180
   const strokeWidth = 20
   const radius = (size - strokeWidth) / 2
   const circumference = radius * 2 * Math.PI
@@ -484,58 +513,79 @@ const DonutChart = ({ categories }) => {
   let cumulativePercentage = 0
   
   return (
-    <div className="flex items-center gap-6">
-      <div className="relative">
-        <svg width={size} height={size} className="transform -rotate-90">
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            stroke="#f3f4f6"
-            strokeWidth={strokeWidth}
-            fill="transparent"
-          />
-          {categories.map((cat, i) => {
-            const percentage = (cat.amount / total) * 100
-            const strokeDasharray = `${(percentage / 100) * circumference} ${circumference}`
-            const strokeDashoffset = -cumulativePercentage * circumference / 100
-            cumulativePercentage += percentage
-            
-            return (
-              <circle
-                key={i}
-                cx={size / 2}
-                cy={size / 2}
-                r={radius}
-                stroke={cat.color}
-                strokeWidth={strokeWidth}
-                strokeDasharray={strokeDasharray}
-                strokeDashoffset={strokeDashoffset}
-                fill="transparent"
-                className="animate-draw-circle"
-                style={{animationDelay: `${i * 0.2}s`}}
-              />
-            )
-          })}
-        </svg>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-center animate-fade-in" style={{animationDelay: '0.5s'}}>
-            <div className="text-xl font-bold animate-bounce-in" style={{animationDelay: '0.8s'}}>₹{Math.round(total / 1000)}K</div>
-            <div className="text-xs text-gray-500">Total</div>
-          </div>
-        </div>
-      </div>
-      
-      <div className="space-y-2">
-        {categories.map((cat, i) => (
-          <div key={i} className="flex items-center gap-2 animate-slide-right hover:scale-105 transition-all duration-300 cursor-pointer group" style={{animationDelay: `${i * 0.1}s`}}>
-            <div className="w-3 h-3 rounded-full animate-pulse group-hover:scale-125 transition-transform" style={{ backgroundColor: cat.color }}></div>
-            <div className="text-sm">
-              <div className="font-medium group-hover:text-purple-600 transition-colors">{cat.name}</div>
-              <div className="text-gray-500 group-hover:text-gray-700 transition-colors">₹{Math.round(cat.amount).toLocaleString()}</div>
+    <div className="h-64 bg-gradient-to-br from-gray-50 to-purple-50 rounded-lg p-4 relative overflow-hidden">
+      <div className="flex items-center justify-center gap-8 h-full">
+        <div className="relative">
+          <svg width={size} height={size} className="transform -rotate-90">
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              stroke="#f1f5f9"
+              strokeWidth={strokeWidth}
+              fill="transparent"
+            />
+            {enhancedCategories.slice(0, 6).map((cat, i) => {
+              const percentage = (cat.amount / total) * 100
+              const strokeDasharray = `${(percentage / 100) * circumference} ${circumference}`
+              const strokeDashoffset = -cumulativePercentage * circumference / 100
+              cumulativePercentage += percentage
+              
+              return (
+                <circle
+                  key={i}
+                  cx={size / 2}
+                  cy={size / 2}
+                  r={radius}
+                  stroke={cat.color}
+                  strokeWidth={strokeWidth}
+                  strokeDasharray={isLoaded ? strokeDasharray : "0 1000"}
+                  strokeDashoffset={strokeDashoffset}
+                  strokeLinecap="round"
+                  fill="transparent"
+                  className="transition-all duration-1000 ease-out hover:opacity-80 cursor-pointer"
+                  style={{ transitionDelay: `${i * 200}ms` }}
+                >
+                  <title>{cat.name}: ₹{Math.round(cat.amount || 0).toLocaleString()} ({percentage.toFixed(1)}%)</title>
+                </circle>
+              )
+            })}
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className={`bg-white rounded-full w-16 h-16 flex flex-col items-center justify-center shadow-sm border border-gray-100 transition-all duration-500 ${
+              isLoaded ? 'scale-100 opacity-100' : 'scale-0 opacity-0'
+            }`}>
+              <div className="text-lg font-semibold text-gray-900">₹{Math.round(total / 1000)}K</div>
+              <div className="text-xs text-gray-500">Total</div>
             </div>
           </div>
-        ))}
+        </div>
+        
+        <div className="space-y-2">
+          {enhancedCategories.slice(0, 6).map((cat, i) => {
+            const percentage = ((cat.amount || 0) / total) * 100
+            return (
+              <div 
+                key={i} 
+                className={`flex items-center gap-3 p-2 rounded-lg hover:bg-white/60 transition-all cursor-pointer ${
+                  isLoaded ? 'translate-x-0 opacity-100' : 'translate-x-4 opacity-0'
+                }`}
+                style={{ transitionDelay: `${300 + i * 100}ms` }}
+              >
+                <div 
+                  className="w-4 h-4 rounded-full shadow-sm" 
+                  style={{ backgroundColor: cat.color }}
+                ></div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-gray-900 text-sm truncate">{cat.name || 'Unknown'}</div>
+                  <div className="text-xs text-gray-600">
+                    ₹{Math.round((cat.amount || 0) / 1000)}K • {percentage.toFixed(1)}%
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
@@ -701,7 +751,7 @@ const BurnRateChart = ({ burnRate }) => {
         </div>
         <div className="w-full bg-gray-200 rounded-full h-3">
           <div
-            className="bg-gradient-to-r from-blue-500 to-green-500 h-3 rounded-full"
+            className="bg-purple-600 h-3 rounded-full"
             style={{ width: `${Math.min(progress, 100)}%` }}
           ></div>
         </div>

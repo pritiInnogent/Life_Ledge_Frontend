@@ -1,0 +1,119 @@
+/* Analytics Chart Animations - Glowing & Kinetic */
+
+@keyframes draw-line {
+  from {
+    stroke-dashoffset: 1000;
+    filter: drop-shadow(0 0 0px #3B82F6);
+  }
+  to {
+    stroke-dashoffset: 0;
+    filter: drop-shadow(0 0 8px #3B82F6aa);
+  }
+}
+
+@keyframes draw-area {
+  from {
+    stroke-dashoffset: 1000;
+    fill-opacity: 0;
+  }
+  to {
+    stroke-dashoffset: 0;
+    fill-opacity: 0.15;
+  }
+}
+
+@keyframes draw-circle {
+  from {
+    stroke-dashoffset: 100;
+    filter: drop-shadow(0 0 0px currentColor);
+  }
+  to {
+    stroke-dashoffset: 0;
+    filter: drop-shadow(0 0 6px currentColor);
+  }
+}
+
+@keyframes bounce-in {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+    filter: drop-shadow(0 0 0px #3B82F6);
+  }
+  50% {
+    transform: scale(1.3);
+    filter: drop-shadow(0 0 12px #3B82F6);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+    filter: drop-shadow(0 0 4px #3B82F6aa);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-right {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 5px currentColor;
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 15px currentColor, 0 0 25px currentColor;
+    transform: scale(1.05);
+  }
+}
+
+.animate-draw-line {
+  stroke-dasharray: 1000;
+  animation: draw-line 2.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.animate-draw-area {
+  stroke-dasharray: 1000;
+  animation: draw-area 2.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.animate-draw-circle {
+  stroke-dasharray: 100;
+  animation: draw-circle 1.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.animate-bounce-in {
+  animation: bounce-in 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+}
+
+.animate-fade-in {
+  animation: fade-in 1s ease-out forwards;
+}
+
+.animate-slide-right {
+  animation: slide-right 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 3s ease-in-out infinite;
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}

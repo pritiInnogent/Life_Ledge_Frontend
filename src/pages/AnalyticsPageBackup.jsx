@@ -65,7 +65,7 @@ const InsightsPage = () => {
     } catch (error) {
       console.error('Error loading accounts:', error);
     }
-  }
+  };
 
   const parseInsightsData = (data) => {
     let parsed = null;
@@ -190,7 +190,7 @@ const InsightsPage = () => {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-6 space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center mb-8">
         <div>

@@ -2,6 +2,10 @@ import React, { useState, useEffect } from "react";
 import apiService from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
 import { Upload, Plus } from "lucide-react";
+import AccountCropDialog from "../components/AccountCropDialog";
+import SelectAccountDialog from "../components/SelectAccountDialog";
+
+
 
 export default function ImportPage() {
   const { user } = useAuth();
@@ -9,6 +13,12 @@ export default function ImportPage() {
   const [activeTab, setActiveTab] = useState("upload");
   const [selectedFile, setSelectedFile] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [rawImageFile, setRawImageFile] = useState(null);     // original image
+  const [showCropDialog, setShowCropDialog] = useState(false);
+  const [showAccountSelect, setShowAccountSelect] = useState(false);
+  const [fileInputKey, setFileInputKey] = useState(0); // Force re-render of file input
+
+
 
   const [notification, setNotification] = useState({
     message: "",
@@ -25,14 +35,20 @@ export default function ImportPage() {
     date: "",
     merchant: "",
     amount: "",
+    typeTransaction: "debit",
+    categoryId: "",
     notes: "",
+    recurring: false,
+    anomaly: false,
   });
+  const [categories, setCategories] = useState([]);
 
   // -------------------------------------------
   // LOAD ACCOUNTS
   // -------------------------------------------
   useEffect(() => {
     loadAccounts();
+    loadCategories();
   }, []);
 
   const loadAccounts = async () => {
@@ -46,6 +62,27 @@ export default function ImportPage() {
     }
   };
 
+  const loadCategories = async () => {
+    try {
+      const res = await apiService.getCategories();
+      setCategories(res);
+      console.log("Loaded categories:", res);
+    } catch (err) {
+      console.error("Failed to load categories:", err);
+      showNotification("Failed to load categories", "error");
+    }
+  };
+
+  // Reset upload form completely
+  const resetUploadForm = () => {
+    setSelectedFile(null);
+    setSelectedAccountId("");
+    setRawImageFile(null);
+    setShowCropDialog(false);
+    setShowAccountSelect(false);
+    setFileInputKey(prev => prev + 1); // Force file input to re-render
+  };
+
   // -------------------------------------------
   // NOTIFICATION
   // -------------------------------------------
@@ -56,59 +93,70 @@ export default function ImportPage() {
     }, 5000);
   };
 
+  const formatSuccessMessage = (result) => {
+  if (result.transactions) {
+    return `${result.transactions.length} transactions imported successfully`;
+  }
+
+  // existing PDF / CSV logic
+  const parts = [];
+  if (result.message) parts.push(result.message);
+  if (result.transactionsImported !== undefined)
+    parts.push(`${result.transactionsImported} transactions imported`);
+  if (result.added?.length)
+    parts.push(`${result.added.length} added`);
+  if (result.skipped?.length)
+    parts.push(`${result.skipped.length} skipped`);
+
+  return parts.join(" • ");
+};
+
   // -------------------------------------------
   // FILE PROCESSING
   // -------------------------------------------
   const handleFileUpload = async () => {
-    if (!selectedFile) {
-      showNotification("Please select a file", "error");
+  if (!selectedFile) {
+    showNotification("Please select a file", "error");
+    return;
+  }
+
+  const fileType = selectedFile.type;
+  const fileName = selectedFile.name.toLowerCase();
+
+  try {
+    setLoading(true);
+    let result;
+
+    if (fileType.startsWith("image/")) {
+      if (!selectedAccountId) {
+        showNotification("Please select an account", "error");
+        return;
+      }
+
+      result = await apiService.processImage(selectedFile, selectedAccountId);
+
+    } else if (fileType === "application/pdf" || fileName.endsWith(".pdf")) {
+      result = await apiService.processPdf(selectedFile, "auto-detected", "");
+
+    } else if (fileType === "text/csv" || fileName.endsWith(".csv")) {
+      result = await apiService.processCsv(selectedFile, "auto-detected");
+
+    } else {
+      showNotification("Unsupported file type", "error");
       return;
     }
 
-    const fileType = selectedFile.type;
-    const fileName = selectedFile.name.toLowerCase();
+    showNotification(formatSuccessMessage(result), "success");
+    // Reset all form state to allow new uploads
+    resetUploadForm();
 
-    try {
-      setLoading(true);
-      let result;
-
-      if (fileType === 'application/pdf' || fileName.endsWith('.pdf')) {
-        result = await apiService.processPdf(selectedFile, "auto-detected", "");
-      } else if (fileType === 'text/csv' || fileName.endsWith('.csv')) {
-        result = await apiService.processCsv(selectedFile, "auto-detected");
-      } else if (fileType.startsWith('image/')) {
-        showNotification("Image processing coming soon!", "info");
-        setSelectedFile(null);
-        return;
-      } else {
-        showNotification("Unsupported file type. Please upload PDF, CSV, or image files.", "error");
-        return;
-      }
-
-      // Show success message even if 0 transactions extracted
-      const extractedCount = result.transactionsExtracted || result.saved || 0;
-      let message = extractedCount > 0 
-        ? `File processed successfully! ${extractedCount} transactions extracted.`
-        : 'File processed successfully! Transaction data has been extracted and processed.';
-      
-      // Add bank account notification if new account was created
-      if (result.newAccount) {
-        message += ` New bank account (${result.bankName || 'HDFC'} ••••${result.accountNumber?.slice(-4) || 'XXXX'}) has been added to your profile.`;
-      }
-      
-      showNotification(message, "success");
-      
-      // Reload accounts in case new account was created
-      await loadAccounts();
-
-      setSelectedFile(null);
-    } catch (err) {
-      console.error(err);
-      showNotification(err.message || "File processing failed", "error");
-    } finally {
-      setLoading(false);
-    }
-  };
+  } catch (err) {
+    console.error(err);
+    showNotification(err.message || "File processing failed", "error");
+  } finally {
+    setLoading(false);
+  }
+};
 
   const processFileWithAccount = async () => {
     if (!accountNumber.trim()) {
@@ -132,23 +180,10 @@ export default function ImportPage() {
         throw new Error("Unsupported file type");
       }
 
-      // Show success message even if 0 transactions extracted
-      const extractedCount = result.transactionsExtracted || result.saved || 0;
-      let message = extractedCount > 0 
-        ? `File processed successfully! ${extractedCount} transactions extracted.`
-        : 'File processed successfully! Transaction data has been extracted and processed.';
+      showNotification(formatSuccessMessage(result), "success");
       
-      // Add bank account notification if new account was created
-      if (result.newAccount) {
-        message += ` New bank account (${result.bankName || 'Unknown Bank'} ••••${result.accountNumber?.slice(-4) || 'XXXX'}) has been added to your profile.`;
-      }
-      
-      showNotification(message, "success");
-      
-      // Reload accounts in case new account was created
-      await loadAccounts();
-
-      setSelectedFile(null);
+      // Reset all form state
+      resetUploadForm();
       setAccountNumber('');
       setPdfPassword('');
     } catch (err) {
@@ -167,27 +202,54 @@ export default function ImportPage() {
       !manualTransaction.date ||
       !manualTransaction.merchant ||
       !manualTransaction.amount ||
+      !manualTransaction.categoryId ||
       !selectedAccountId
     ) {
       showNotification("Please fill all required fields", "error");
       return;
     }
 
+    const amount = parseFloat(manualTransaction.amount);
+    if (isNaN(amount) || amount <= 0) {
+      showNotification("Please enter a valid amount", "error");
+      return;
+    }
+
     try {
       setLoading(true);
 
-      const response = await apiService.addTransaction({
-        ...manualTransaction,
-        amount: parseFloat(manualTransaction.amount),
+      const transactionData = {
+        date: manualTransaction.date,
+        merchant: manualTransaction.merchant,
+        amount: amount,
+        typeTransaction: manualTransaction.typeTransaction.toUpperCase(),
+        categoryId: parseInt(manualTransaction.categoryId),
         bankAccountId: selectedAccountId,
-      });
+        notes: manualTransaction.notes || "",
+        recurring: manualTransaction.recurring,
+        anomaly: manualTransaction.anomaly,
+      };
+
+      console.log('Form state before submit:', manualTransaction);
+      console.log('Submitting transaction:', transactionData);
+      const response = await apiService.addTransaction(transactionData);
+      console.log('Transaction response:', response);
 
       showNotification("Transaction added successfully!", "success");
 
-      setManualTransaction({ date: "", merchant: "", amount: "", notes: "" });
+      setManualTransaction({ 
+        date: "", 
+        merchant: "", 
+        amount: "", 
+        typeTransaction: "debit",
+        categoryId: "",
+        notes: "",
+        recurring: false,
+        anomaly: false,
+      });
       setSelectedAccountId("");
     } catch (err) {
-      console.error(err);
+      console.error('Transaction submission error:', err);
       showNotification(err.message || "Failed to add transaction.", "error");
     } finally {
       setLoading(false);
@@ -255,13 +317,29 @@ export default function ImportPage() {
               <Upload className="w-12 h-12 text-purple-500 mx-auto mb-4" />
               <h3 className="text-lg font-bold mb-2">Choose File to Upload</h3>
               <p className="text-gray-600 mb-4">PDF, CSV, JPG, PNG files supported</p>
-              
+              {/* Masked preview after crop */}
               <input
-                type="file"
-                accept=".pdf,.csv,.jpg,.jpeg,.png"
-                onChange={(e) => setSelectedFile(e.target.files[0])}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-xl file:border-0 file:bg-gradient-to-r file:from-purple-50 file:to-cyan-50 file:text-purple-700 hover:file:from-purple-100 hover:file:to-cyan-100 file:font-bold file:transition-all"
-              />
+  key={fileInputKey}
+  type="file"
+  accept=".pdf,.csv,.jpg,.jpeg,.png"
+  onChange={(e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.type.startsWith("image/")) {
+      // ✅ image → open crop dialog
+      setRawImageFile(file);
+      setSelectedFile(null);      // wait for masked version
+      setShowCropDialog(true);    // 🔥 THIS opens the crop UI
+    } else {
+      // ✅ pdf / csv → same behavior as before
+      setRawImageFile(null);
+      setSelectedFile(file);
+    }
+  }}
+  className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-xl file:border-0 file:bg-gradient-to-r file:from-purple-50 file:to-cyan-50 file:text-purple-700 hover:file:from-purple-100 hover:file:to-cyan-100 file:font-bold file:transition-all"
+/>
+
             </div>
 
             {selectedFile && (
@@ -273,7 +351,11 @@ export default function ImportPage() {
 
             <button
               onClick={handleFileUpload}
-              disabled={loading || !selectedFile}
+              disabled={
+                loading ||
+                !selectedFile ||
+                (selectedFile.type.startsWith("image/") && !selectedAccountId)
+              }
               className="w-full bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-700 hover:to-cyan-700 text-white px-8 py-4 rounded-xl font-bold shadow-lg shadow-purple-600/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? "Processing…" : "Process File"}
@@ -306,83 +388,219 @@ export default function ImportPage() {
               </select>
             </div>
 
-            {/* Date + Amount */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Date + Amount + Type */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-bold mb-2">Date *</label>
+                <label className="block text-sm font-bold mb-2 text-gray-700">Date *</label>
                 <input
                   type="date"
                   value={manualTransaction.date}
                   onChange={(e) =>
                     setManualTransaction({ ...manualTransaction, date: e.target.value })
                   }
-                  className="w-full p-3 border rounded-xl"
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold mb-2">Amount *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={manualTransaction.amount}
+                <label className="block text-sm font-bold mb-2 text-gray-700">Amount *</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-semibold">₹</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    value={manualTransaction.amount}
+                    onChange={(e) =>
+                      setManualTransaction({ ...manualTransaction, amount: e.target.value })
+                    }
+                    className="w-full p-3 pl-8 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold mb-2 text-gray-700">Transaction Type *</label>
+                <select
+                  value={manualTransaction.typeTransaction}
                   onChange={(e) =>
-                    setManualTransaction({ ...manualTransaction, amount: e.target.value })
+                    setManualTransaction({ ...manualTransaction, typeTransaction: e.target.value })
                   }
-                  className="w-full p-3 border rounded-xl"
-                />
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                >
+                  <option value="debit">💸 Debit (Expense)</option>
+                  <option value="credit">💰 Credit (Income)</option>
+                </select>
               </div>
             </div>
 
-            {/* Merchant */}
-            <div>
-              <label className="block text-sm font-bold mb-2">Merchant *</label>
-              <input
-                type="text"
-                value={manualTransaction.merchant}
-                onChange={(e) =>
-                  setManualTransaction({ ...manualTransaction, merchant: e.target.value })
-                }
-                className="w-full p-3 border rounded-xl"
-              />
+            {/* Merchant + Category */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold mb-2 text-gray-700">Merchant *</label>
+                <input
+                  type="text"
+                  placeholder="e.g., Swiggy, Amazon, Netflix"
+                  value={manualTransaction.merchant}
+                  onChange={(e) =>
+                    setManualTransaction({ ...manualTransaction, merchant: e.target.value })
+                  }
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold mb-2 text-gray-700">Category *</label>
+                <select
+                  value={manualTransaction.categoryId}
+                  onChange={(e) =>
+                    setManualTransaction({ ...manualTransaction, categoryId: e.target.value })
+                  }
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                >
+                  <option value="">-- Select Category --</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Additional Options */}
+            <div className="bg-gray-50 rounded-xl p-4">
+              <h3 className="font-bold text-gray-700 mb-3">Additional Options</h3>
+              <div className="flex flex-wrap gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={manualTransaction.recurring}
+                    onChange={(e) =>
+                      setManualTransaction({ ...manualTransaction, recurring: e.target.checked })
+                    }
+                    className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">🔄 Recurring Transaction</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={manualTransaction.anomaly}
+                    onChange={(e) =>
+                      setManualTransaction({ ...manualTransaction, anomaly: e.target.checked })
+                    }
+                    className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">⚠️ Mark as Anomaly</span>
+                </label>
+              </div>
             </div>
 
             {/* Notes */}
             <div>
-              <label className="block text-sm font-bold mb-2">Notes</label>
+              <label className="block text-sm font-bold mb-2 text-gray-700">Notes</label>
               <textarea
+                placeholder="Add any additional notes (optional)"
                 value={manualTransaction.notes}
                 onChange={(e) =>
                   setManualTransaction({ ...manualTransaction, notes: e.target.value })
                 }
-                className="w-full p-3 border rounded-xl"
+                className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                 rows="3"
               />
             </div>
 
+            {/* Transaction Preview */}
+            {(manualTransaction.amount || manualTransaction.merchant) && (
+              <div className="bg-gradient-to-r from-purple-50 to-cyan-50 rounded-xl p-4 border border-purple-200">
+                <h3 className="font-bold text-purple-800 mb-3 flex items-center gap-2">
+                  👁️ Transaction Preview
+                </h3>
+                <div className="flex justify-between items-center">
+                  <div className="flex-1">
+                    <p className="font-semibold text-gray-800">{manualTransaction.merchant || "Merchant Name"}</p>
+                    <p className="text-sm text-gray-600">{manualTransaction.date || "Date"}</p>
+                    {manualTransaction.categoryId && (
+                      <p className="text-sm text-purple-600">
+                        {categories.find(c => c.id == manualTransaction.categoryId)?.name || "Category"}
+                      </p>
+                    )}
+                    <div className="flex gap-2 mt-1">
+                      {manualTransaction.recurring && (
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">🔄 Recurring</span>
+                      )}
+                      {manualTransaction.anomaly && (
+                        <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full">⚠️ Anomaly</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={`font-bold text-xl ${
+                      manualTransaction.typeTransaction === 'credit' ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {manualTransaction.typeTransaction === 'credit' ? '+' : '-'}₹{manualTransaction.amount || '0.00'}
+                    </p>
+                    <p className={`text-sm capitalize font-medium ${
+                      manualTransaction.typeTransaction === 'credit' ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {manualTransaction.typeTransaction === 'credit' ? '💰 Income' : '💸 Expense'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <button
               onClick={handleManualSubmit}
-              disabled={loading}
-              className="w-full bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-700 hover:to-cyan-700 text-white px-8 py-4 rounded-xl font-bold shadow-lg shadow-purple-600/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={loading || !manualTransaction.date || !manualTransaction.merchant || !manualTransaction.amount || !manualTransaction.categoryId || !selectedAccountId}
+              className="w-full bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-700 hover:to-cyan-700 text-white px-8 py-4 rounded-xl font-bold shadow-lg shadow-purple-600/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02] active:scale-[0.98]"
             >
-              {loading ? "Adding…" : "Add Transaction"}
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Adding Transaction…
+                </span>
+              ) : (
+                <span className="flex items-center justify-center gap-2">
+                  ✨ Add Transaction
+                </span>
+              )}
             </button>
           </div>
         )}
       </div>
 
-      {/* View Transactions Button */}
-      <div className="bg-white rounded-2xl shadow p-6 text-center">
-        <h3 className="text-xl font-bold mb-4">Ready to View Your Transactions?</h3>
-        <p className="text-gray-600 mb-6">Once you've imported your data, view and analyze your transactions</p>
-        <button
-          onClick={() => window.location.href = '/app/transactions'}
-          className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-4 rounded-xl font-bold shadow-lg transition-all duration-200"
-        >
-          View Transactions
-        </button>
-      </div>
+{/* Crop dialog overlay (images only) */}
+{showCropDialog && rawImageFile && (
+  <AccountCropDialog
+    imageFile={rawImageFile}
+      onConfirm={(croppedFile) => {
+  setSelectedFile(croppedFile);
+  setShowCropDialog(false);
+  setShowAccountSelect(true); // ✅ NEW
+}}
+    onCancel={() => {
+      resetUploadForm();
+    }}
+  />
+)}
+
+{showAccountSelect && (
+  <SelectAccountDialog
+    onSelect={(accountId) => {
+      setSelectedAccountId(accountId);
+      setShowAccountSelect(false);
+    }}
+    onCancel={() => {
+      resetUploadForm();
+    }}
+  />
+)}
+
 
     </div>
   );
 }
+  

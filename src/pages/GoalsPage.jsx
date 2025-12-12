@@ -1,119 +1,111 @@
 import React, { useState, useEffect } from 'react'
-import { Target, Plus, Calendar, DollarSign, TrendingUp, AlertCircle, CheckCircle2, Clock, Trash2, Lightbulb, Edit3 } from 'lucide-react'
+import { Target, Plus, CheckCircle2, Clock, AlertCircle, X, Bell, ChevronLeft, ChevronRight } from 'lucide-react'
 import ApiService from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
+import DownloadButton from '../components/DownloadButton'
 
-const GoalCard = ({ goal, onDelete, onEdit }) => {
-  const progress = Math.min((goal.currentAmount / goal.targetAmount) * 100, 100)
-  const daysLeft = Math.ceil((new Date(goal.endDate) - new Date()) / (1000 * 60 * 60 * 24))
-  const isOverdue = daysLeft < 0
-  const isCompleted = progress >= 100
+const formatCurrency = (v) => typeof v === "number" ? `₹${v.toLocaleString()}` : "₹0"
+
+const GoalCard = ({ goal, onDelete, onEdit, onContribute }) => {
+  const currentAmount = Number(goal.currentAmount) || 0
+  const targetAmount = Number(goal.targetAmount) || 1
+  const progress = Math.min((currentAmount / targetAmount) * 100, 100)
   
-  const getGradient = () => {
-    if (isCompleted) return 'from-green-500 to-emerald-600'
-    if (isOverdue) return 'from-red-500 to-rose-600'
-    if (progress > 70) return 'from-yellow-500 to-orange-500'
-    return 'from-blue-500 to-indigo-600'
+  const getTypeIcon = (type) => {
+    switch(type) {
+      case 'BUDGET': return '💰'
+      case 'SAVING': return '🎯'
+      case 'SPENDINGCAP': return '🚫'
+      default: return '🎯'
+    }
   }
   
-  const getStatusIcon = () => {
-    if (isCompleted) return <CheckCircle2 className="w-5 h-5 text-white" />
-    if (isOverdue) return <AlertCircle className="w-5 h-5 text-white" />
-    return <Clock className="w-5 h-5 text-white" />
+  const getTypeColor = (type) => {
+    switch(type) {
+      case 'BUDGET': return 'bg-blue-100 text-blue-600'
+      case 'SAVING': return 'bg-green-100 text-green-600'
+      case 'SPENDINGCAP': return 'bg-red-100 text-red-600'
+      default: return 'bg-purple-100 text-purple-600'
+    }
   }
+  
+  const daysLeft = goal.deadline ? Math.ceil((new Date(goal.deadline) - new Date()) / (1000 * 60 * 60 * 24)) : null
   
   return (
-    <div className="group relative bg-gradient-to-br from-white via-gray-50 to-gray-100 rounded-3xl p-6 shadow-xl border border-gray-200/50 hover:shadow-2xl transition-all duration-500 hover:scale-105 overflow-hidden">
-      {/* Background Pattern */}
-      <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-transparent to-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-      
-      <div className="relative z-10">
-        <div className="flex items-start justify-between mb-6">
-          <div className="flex items-center gap-4">
-            <div className={`w-14 h-14 bg-gradient-to-br ${getGradient()} rounded-2xl flex items-center justify-center shadow-lg`}>
-              {getStatusIcon()}
-            </div>
-            <div>
-              <h3 className="font-black text-xl text-gray-900 mb-1">{goal.name}</h3>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-600">{goal.category}</span>
-                <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-bold uppercase tracking-wide">
-                  {goal.type?.replace('_', ' ') || 'Budget'}
-                </span>
-              </div>
-            </div>
+    <div className="bg-white rounded-2xl p-6 shadow hover:shadow-lg transition-shadow">
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${getTypeColor(goal.type)}`}>
+            <span className="text-lg">{getTypeIcon(goal.type)}</span>
           </div>
-          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            <button 
-              onClick={() => onEdit(goal)}
-              className="p-2 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-xl transition-colors"
-            >
-              <Edit3 className="w-4 h-4" />
-            </button>
-            <button 
-              onClick={() => onDelete(goal.id)}
-              className="p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-xl transition-colors"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-        
-        {/* Progress Section */}
-        <div className="mb-6">
-          <div className="flex justify-between items-center mb-3">
-            <span className="text-sm font-bold text-gray-700">Progress</span>
-            <div className="text-right">
-              <div className="text-lg font-black text-gray-900">
-                ₹{goal.currentAmount.toLocaleString()}
-              </div>
-              <div className="text-sm text-gray-500">
-                of ₹{goal.targetAmount.toLocaleString()}
-              </div>
-            </div>
-          </div>
-          
-          {/* Modern Progress Bar */}
-          <div className="relative">
-            <div className="w-full bg-gray-200 rounded-full h-4 shadow-inner">
-              <div 
-                className={`h-4 bg-gradient-to-r ${getGradient()} rounded-full transition-all duration-1000 ease-out shadow-lg relative overflow-hidden`}
-                style={{ width: `${Math.min(progress, 100)}%` }}
-              >
-                <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
-              </div>
-            </div>
-            <div className="absolute -top-8 left-0 right-0 flex justify-between">
-              <span className="text-xs font-bold text-gray-600">{progress.toFixed(1)}%</span>
-              <span className="text-xs font-medium text-gray-500">
-                {isOverdue ? `${Math.abs(daysLeft)} days overdue` : 
-                 isCompleted ? '🎉 Completed!' : 
-                 `${daysLeft} days left`}
+          <div>
+            <h3 className="font-semibold text-lg">{goal.name || 'Unnamed Goal'}</h3>
+            <div className="flex items-center gap-2">
+              <p className="text-sm text-gray-600">{goal.category || 'General'}</p>
+              <span className={`text-xs px-2 py-1 rounded-full font-semibold ${getTypeColor(goal.type)}`}>
+                {goal.type || 'BUDGET'}
               </span>
+              {daysLeft !== null && (
+                <span className={`text-xs px-2 py-1 rounded-full ${
+                  daysLeft < 0 ? 'bg-red-100 text-red-600' :
+                  daysLeft < 30 ? 'bg-orange-100 text-orange-600' :
+                  'bg-green-100 text-green-600'
+                }`}>
+                  {daysLeft < 0 ? 'Overdue' : `${daysLeft}d left`}
+                </span>
+              )}
             </div>
           </div>
         </div>
-        
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-4 border border-white/50">
-            <div className="text-2xl font-black text-gray-900">₹{Math.round((goal.targetAmount - goal.currentAmount) / Math.max(daysLeft, 1)).toLocaleString()}</div>
-            <div className="text-xs font-medium text-gray-600">Daily Target</div>
+        <button 
+          onClick={() => onDelete && onDelete(goal.id)}
+          className="text-gray-400 hover:text-red-600 transition-colors"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+      
+      <div className="mb-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-blue-50 rounded-lg p-3 text-center">
+            <div className="text-lg font-bold text-blue-600">{formatCurrency(currentAmount)}</div>
+            <div className="text-xs text-gray-600">Current Amount</div>
           </div>
-          <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-4 border border-white/50">
-            <div className="text-2xl font-black text-gray-900">{Math.round(progress)}%</div>
-            <div className="text-xs font-medium text-gray-600">Complete</div>
+          <div className="bg-purple-50 rounded-lg p-3 text-center">
+            <div className="text-lg font-bold text-purple-600">{formatCurrency(targetAmount)}</div>
+            <div className="text-xs text-gray-600">Target Amount</div>
           </div>
         </div>
-        
-        {goal.nudge && (
-          <div className="bg-gradient-to-r from-purple-100 to-blue-100 border border-purple-200 rounded-2xl p-4">
-            <div className="flex items-center gap-3">
-              <Lightbulb className="w-5 h-5 text-purple-600" />
-              <p className="text-sm font-semibold text-purple-800">{goal.nudge}</p>
-            </div>
-          </div>
-        )}
+        <div className="text-center mt-3">
+          {progress >= 100 ? (
+            <span className="px-3 py-1 rounded-full bg-green-100 text-green-700 text-sm font-semibold">
+              Done
+            </span>
+          ) : daysLeft !== null && daysLeft < 0 ? (
+            <span className="px-3 py-1 rounded-full bg-red-100 text-red-700 text-sm font-semibold">
+              Overdue
+            </span>
+          ) : (
+            <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-sm font-semibold">
+              Running
+            </span>
+          )}
+        </div>
+      </div>
+      
+      <div className="flex gap-2">
+        <button
+          onClick={() => onContribute && onContribute(goal.id)}
+          className="flex-1 bg-green-600 text-white py-2 px-3 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors"
+        >
+          Add Money
+        </button>
+        <button
+          onClick={() => onEdit && onEdit(goal)}
+          className="flex-1 bg-blue-600 text-white py-2 px-3 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors"
+        >
+          Edit Goal
+        </button>
       </div>
     </div>
   )
@@ -125,99 +117,41 @@ const GoalForm = ({ goal, onSave, onCancel }) => {
     category: goal?.category || '',
     targetAmount: goal?.targetAmount || '',
     currentAmount: goal?.currentAmount || 0,
-    endDate: goal?.endDate || '',
     type: goal?.type || 'BUDGET',
-    emoji: goal?.emoji || 'target'
+    startDate: goal?.startDate || new Date().toISOString().split('T')[0],
+    deadline: goal?.deadline || ''
   })
-  const [errors, setErrors] = useState({})
-  
-  const validateForm = () => {
-    const newErrors = {}
-    
-    // Goal name validation
-    if (!formData.name.trim()) {
-      newErrors.name = 'Goal name is required'
-    } else if (formData.name.trim().length < 3) {
-      newErrors.name = 'Goal name must be at least 3 characters'
-    } else if (!/^[a-zA-Z\s]+/.test(formData.name.trim())) {
-      newErrors.name = 'Goal name should start with letters and be meaningful'
-    } else if (formData.name.trim().length > 50) {
-      newErrors.name = 'Goal name must be less than 50 characters'
-    }
-    
-    // Category validation
-    if (formData.category && !/^[a-zA-Z\s]+$/.test(formData.category.trim())) {
-      newErrors.category = 'Category should only contain letters'
-    }
-    
-    // Target amount validation
-    const targetAmount = parseFloat(formData.targetAmount)
-    if (!formData.targetAmount) {
-      newErrors.targetAmount = 'Target amount is required'
-    } else if (isNaN(targetAmount) || targetAmount <= 0) {
-      newErrors.targetAmount = 'Please enter a valid amount greater than 0'
-    } else if (targetAmount > 10000000) {
-      newErrors.targetAmount = 'Target amount seems too high. Please enter a realistic amount'
-    }
-    
-    // End date validation
-    if (!formData.endDate) {
-      newErrors.endDate = 'End date is required'
-    } else {
-      const selectedDate = new Date(formData.endDate)
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      
-      if (selectedDate <= today) {
-        newErrors.endDate = 'End date must be in the future'
-      }
-      
-      const maxDate = new Date()
-      maxDate.setFullYear(maxDate.getFullYear() + 10)
-      if (selectedDate > maxDate) {
-        newErrors.endDate = 'End date cannot be more than 10 years from now'
-      }
-    }
-    
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
-  
+
   const handleSubmit = (e) => {
     e.preventDefault()
-    if (validateForm()) {
-      onSave({
-        ...goal,
-        ...formData,
-        name: formData.name.trim(),
-        category: formData.category.trim(),
-        targetAmount: parseFloat(formData.targetAmount),
-        currentAmount: parseFloat(formData.currentAmount)
-      })
+    if (!formData.name || !formData.targetAmount) {
+      alert('Please fill in required fields')
+      return
     }
+    
+    onSave({
+      ...goal,
+      ...formData,
+      targetAmount: parseFloat(formData.targetAmount),
+      currentAmount: parseFloat(formData.currentAmount)
+    })
   }
-  
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-2xl p-6 w-full max-w-md mx-4">
-        <h3 className="font-black text-xl mb-4">{goal ? 'Edit Goal' : 'Create New Goal'}</h3>
+        <h3 className="font-bold text-xl mb-4">{goal ? 'Edit Goal' : 'Create New Goal'}</h3>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">Goal Name</label>
+            <label className="block text-sm font-bold text-gray-700 mb-1">Goal Name *</label>
             <input
               type="text"
               value={formData.name}
-              onChange={(e) => {
-                setFormData({...formData, name: e.target.value})
-                if (errors.name) setErrors({...errors, name: ''})
-              }}
-              className={`w-full p-3 border rounded-lg font-semibold ${
-                errors.name ? 'border-red-500 bg-red-50' : 'border-gray-300'
-              }`}
-              placeholder="e.g., Monthly Food Budget"
+              onChange={(e) => setFormData({...formData, name: e.target.value})}
+              className="w-full p-3 border rounded-lg"
+              placeholder="e.g., Emergency Fund"
               required
             />
-            {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
           </div>
           
           <div className="grid grid-cols-2 gap-4">
@@ -226,11 +160,11 @@ const GoalForm = ({ goal, onSave, onCancel }) => {
               <select
                 value={formData.type}
                 onChange={(e) => setFormData({...formData, type: e.target.value})}
-                className="w-full p-3 border border-gray-300 rounded-lg font-semibold"
+                className="w-full p-3 border rounded-lg"
               >
-                <option value="BUDGET">Budget</option>
-                <option value="SAVING">Savings</option>
-                <option value="SPENDING_CAP">Spending Cap</option>
+                <option value="BUDGET">💰 Budget</option>
+                <option value="SAVING">🎯 Savings Goal</option>
+                <option value="SPENDINGCAP">🚫 Spending Cap</option>
               </select>
             </div>
             <div>
@@ -238,55 +172,48 @@ const GoalForm = ({ goal, onSave, onCancel }) => {
               <input
                 type="text"
                 value={formData.category}
-                onChange={(e) => {
-                  setFormData({...formData, category: e.target.value})
-                  if (errors.category) setErrors({...errors, category: ''})
-                }}
-                className={`w-full p-3 border rounded-lg font-semibold ${
-                  errors.category ? 'border-red-500 bg-red-50' : 'border-gray-300'
-                }`}
+                onChange={(e) => setFormData({...formData, category: e.target.value})}
+                className="w-full p-3 border rounded-lg"
                 placeholder="e.g., Food"
               />
-              {errors.category && <p className="text-red-500 text-sm mt-1">{errors.category}</p>}
             </div>
           </div>
           
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">Target Amount (₹)</label>
+            <label className="block text-sm font-bold text-gray-700 mb-1">Target Amount (₹) *</label>
             <input
               type="number"
               value={formData.targetAmount}
-              onChange={(e) => {
-                setFormData({...formData, targetAmount: e.target.value})
-                if (errors.targetAmount) setErrors({...errors, targetAmount: ''})
-              }}
-              className={`w-full p-3 border rounded-lg font-semibold ${
-                errors.targetAmount ? 'border-red-500 bg-red-50' : 'border-gray-300'
-              }`}
-              placeholder="5000"
+              onChange={(e) => setFormData({...formData, targetAmount: e.target.value})}
+              className="w-full p-3 border rounded-lg"
+              placeholder="50000"
               min="1"
-              max="10000000"
               required
             />
-            {errors.targetAmount && <p className="text-red-500 text-sm mt-1">{errors.targetAmount}</p>}
           </div>
           
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">End Date</label>
-            <input
-              type="date"
-              value={formData.endDate}
-              onChange={(e) => {
-                setFormData({...formData, endDate: e.target.value})
-                if (errors.endDate) setErrors({...errors, endDate: ''})
-              }}
-              className={`w-full p-3 border rounded-lg font-semibold ${
-                errors.endDate ? 'border-red-500 bg-red-50' : 'border-gray-300'
-              }`}
-              min={new Date().toISOString().split('T')[0]}
-              required
-            />
-            {errors.endDate && <p className="text-red-500 text-sm mt-1">{errors.endDate}</p>}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">Start Date *</label>
+              <input
+                type="date"
+                value={formData.startDate}
+                onChange={(e) => setFormData({...formData, startDate: e.target.value})}
+                className="w-full p-3 border rounded-lg"
+                max={new Date().toISOString().split('T')[0]}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">Deadline</label>
+              <input
+                type="date"
+                value={formData.deadline}
+                onChange={(e) => setFormData({...formData, deadline: e.target.value})}
+                className="w-full p-3 border rounded-lg"
+                min={formData.startDate}
+              />
+            </div>
           </div>
           
           <div className="flex gap-3 pt-4">
@@ -313,90 +240,154 @@ const GoalForm = ({ goal, onSave, onCancel }) => {
 export default function GoalsPage() {
   const { user } = useAuth()
   const [goals, setGoals] = useState([])
+  const [nudges, setNudges] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const [editingGoal, setEditingGoal] = useState(null)
-  const [filter, setFilter] = useState('all')
-  
+  const [recalculating, setRecalculating] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState(null)
+  const [deleteAllConfirm, setDeleteAllConfirm] = useState(false)
+  const [deletingAll, setDeletingAll] = useState(false)
+  const [currentNudgeIndex, setCurrentNudgeIndex] = useState(0)
+
   useEffect(() => {
     if (user?.userId) {
       loadGoals()
+      loadNudges()
     }
   }, [user])
 
   const loadGoals = async () => {
     try {
       setLoading(true)
-      setError(null)
       const data = await ApiService.getUserGoals()
       setGoals(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error('Error loading goals:', err)
-      setError(err.message)
+      setError('Failed to load goals')
       setGoals([])
     } finally {
       setLoading(false)
     }
   }
-  
+
+  const loadNudges = async () => {
+    try {
+      const data = await ApiService.getUserNudges()
+      setNudges(Array.isArray(data) ? data.slice(0, 3) : []) // Limit to 3
+    } catch (err) {
+      console.error('Error loading nudges:', err)
+      setNudges([])
+    }
+  }
+
+  const markNudgeAsRead = async (nudgeId) => {
+    try {
+      await ApiService.markNudgeAsRead(nudgeId)
+      const updatedNudges = nudges.filter(n => n.id !== nudgeId)
+      setNudges(updatedNudges)
+      if (currentNudgeIndex >= updatedNudges.length) {
+        setCurrentNudgeIndex(Math.max(0, updatedNudges.length - 1))
+      }
+    } catch (err) {
+      console.error('Error marking nudge as read:', err)
+      const updatedNudges = nudges.filter(n => n.id !== nudgeId)
+      setNudges(updatedNudges)
+      if (currentNudgeIndex >= updatedNudges.length) {
+        setCurrentNudgeIndex(Math.max(0, updatedNudges.length - 1))
+      }
+    }
+  }
+
   const saveGoal = async (goalData) => {
     try {
-      setError(null)
-      let savedGoal
-      
       if (goalData.id) {
-        savedGoal = await ApiService.updateGoal(goalData.id, goalData)
-        setGoals(goals.map(g => g.id === goalData.id ? savedGoal : g))
+        await ApiService.updateGoal(goalData.id, goalData)
+        setGoals(goals.map(g => g.id === goalData.id ? goalData : g))
       } else {
-        savedGoal = await ApiService.createGoal(goalData)
+        const savedGoal = await ApiService.createGoal(goalData)
         setGoals([...goals, savedGoal])
       }
-      
       setShowForm(false)
       setEditingGoal(null)
     } catch (err) {
       console.error('Error saving goal:', err)
-      setError(err.message)
+      alert('Failed to save goal')
     }
   }
-  
-  const deleteGoal = async (goalId) => {
+
+  const deleteGoal = (goalId) => {
+    const goal = goals.find(g => g.id === goalId)
+    setDeleteConfirm({ goalId, goalName: goal?.name || 'this goal' })
+  }
+
+  const confirmDelete = async () => {
     try {
-      await ApiService.deleteGoal(goalId)
-      setGoals(goals.filter(g => g.id !== goalId))
+      await ApiService.deleteGoal(deleteConfirm.goalId)
+      setGoals(goals.filter(g => g.id !== deleteConfirm.goalId))
+      await loadNudges()
+      setDeleteConfirm(null)
     } catch (err) {
       console.error('Error deleting goal:', err)
-      setError(err.message)
+      alert('Failed to delete goal')
     }
   }
-  
-  const filteredGoals = goals.filter(goal => {
-    if (filter === 'all') return true
-    
-    // Handle case sensitivity and missing type field
-    const goalType = (goal.type || 'BUDGET').toUpperCase()
-    
-    if (filter === 'budget') return goalType === 'BUDGET'
-    if (filter === 'savings') return goalType === 'SAVING' 
-    if (filter === 'spending') return goalType === 'SPENDING_CAP'
-    return true
-  })
-  
-  const stats = {
-    total: goals.length,
-    completed: goals.filter(g => (g.currentAmount / g.targetAmount) >= 1).length,
-    onTrack: goals.filter(g => {
-      const progress = g.currentAmount / g.targetAmount
-      const timeProgress = (new Date() - new Date(g.endDate)) / (1000 * 60 * 60 * 24)
-      return progress >= 0.5 && progress < 1 && timeProgress <= 0
-    }).length,
-    overdue: goals.filter(g => {
-      const daysLeft = Math.ceil((new Date(g.endDate) - new Date()) / (1000 * 60 * 60 * 24))
-      return daysLeft < 0 && (g.currentAmount / g.targetAmount) < 1
-    }).length
+
+  const editGoal = (goal) => {
+    setEditingGoal(goal)
+    setShowForm(true)
   }
-  
+
+  const contributeToGoal = async (goalId) => {
+    const amount = prompt('Enter amount to add:')
+    if (!amount || isNaN(amount) || Number(amount) <= 0) return
+    
+    try {
+      await ApiService.contributeToGoal(goalId, Number(amount))
+      await loadGoals()
+    } catch (err) {
+      console.error('Error contributing to goal:', err)
+      alert('Failed to add contribution')
+    }
+  }
+
+  const recalculateNudges = async () => {
+    try {
+      setRecalculating(true)
+      await ApiService.recalculateNudges()
+      await loadNudges()
+    } catch (err) {
+      console.error('Error recalculating nudges:', err)
+      alert('Failed to recalculate nudges')
+    } finally {
+      setRecalculating(false)
+    }
+  }
+
+  const deleteAllGoals = async () => {
+    try {
+      setDeletingAll(true)
+      await ApiService.deleteAllGoals()
+      setGoals([])
+      await loadNudges()
+      setDeleteAllConfirm(false)
+    } catch (err) {
+      console.error('Error deleting all goals:', err)
+      alert('Failed to delete all goals')
+    } finally {
+      setDeletingAll(false)
+    }
+  }
+
+  const nextNudge = () => {
+    setCurrentNudgeIndex((prev) => (prev + 1) % nudges.length)
+  }
+
+  const prevNudge = () => {
+    setCurrentNudgeIndex((prev) => (prev - 1 + nudges.length) % nudges.length)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -404,127 +395,206 @@ export default function GoalsPage() {
       </div>
     )
   }
-  
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-indigo-100 p-6 space-y-8">
+    <div className="space-y-8">
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 animate-pulse">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <p className="text-red-800 font-semibold">Error: {error}</p>
         </div>
       )}
       
-      <div className="flex items-center justify-end animate-fade-in">
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-4 rounded-2xl font-bold hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 shadow-xl hover:shadow-2xl transform hover:scale-105"
-        >
-          <Plus className="w-5 h-5" />
-          New Goal
-        </button>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-xl border border-white/50 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.1s'}}>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
-              <Target className="w-6 h-6 text-white" />
-            </div>
-            <span className="font-bold text-gray-700">Total Goals</span>
-          </div>
-          <div className="text-3xl font-black text-gray-900">{stats.total}</div>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Financial Goals</h1>
+          <p className="text-gray-600 font-semibold">Track your budgets, savings, and spending targets</p>
         </div>
-        <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-xl border border-white/50 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.2s'}}>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg">
-              <CheckCircle2 className="w-6 h-6 text-white" />
-            </div>
-            <span className="font-bold text-gray-700">Completed</span>
-          </div>
-          <div className="text-3xl font-black text-green-600">{stats.completed}</div>
-        </div>
-        <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-xl border border-white/50 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.3s'}}>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-2xl flex items-center justify-center shadow-lg">
-              <TrendingUp className="w-6 h-6 text-white" />
-            </div>
-            <span className="font-bold text-gray-700">On Track</span>
-          </div>
-          <div className="text-3xl font-black text-blue-600">{stats.onTrack}</div>
-        </div>
-        <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-xl border border-white/50 hover:shadow-2xl transition-all duration-500 animate-slide-up" style={{animationDelay: '0.4s'}}>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-rose-600 rounded-2xl flex items-center justify-center shadow-lg">
-              <AlertCircle className="w-6 h-6 text-white" />
-            </div>
-            <span className="font-bold text-gray-700">Overdue</span>
-          </div>
-          <div className="text-3xl font-black text-red-600">{stats.overdue}</div>
-        </div>
-      </div>
-      
-      <div className="flex gap-4 flex-wrap animate-fade-in" style={{animationDelay: '0.5s'}}>
-        {[
-          { key: 'all', label: 'All Goals', count: goals.length, gradient: 'from-gray-500 to-gray-600' },
-          { key: 'budget', label: 'Budget Goals', count: goals.filter(g => (g.type || 'BUDGET').toUpperCase() === 'BUDGET').length, gradient: 'from-purple-500 to-indigo-600' },
-          { key: 'savings', label: 'Savings Goals', count: goals.filter(g => (g.type || 'BUDGET').toUpperCase() === 'SAVING').length, gradient: 'from-green-500 to-emerald-600' },
-          { key: 'spending', label: 'Spending Caps', count: goals.filter(g => (g.type || 'BUDGET').toUpperCase() === 'SPENDING_CAP').length, gradient: 'from-red-500 to-rose-600' }
-        ].map(({ key, label, count, gradient }) => (
+        <div className="flex gap-3">
+          <DownloadButton targetId="goals-content" filename="goals-report" />
+          {goals.length > 0 && (
+            <button
+              onClick={() => setDeleteAllConfirm(true)}
+              disabled={deletingAll}
+              className="flex items-center gap-2 bg-red-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-red-700 transition-colors disabled:opacity-50"
+            >
+              <X className="w-5 h-5" />
+              Delete All
+            </button>
+          )}
           <button
-            key={key}
-            onClick={() => setFilter(key)}
-            className={`px-6 py-3 rounded-2xl font-bold transition-all duration-300 flex items-center gap-3 transform hover:scale-105 ${
-              filter === key 
-                ? `bg-gradient-to-r ${gradient} text-white shadow-xl` 
-                : 'bg-white/80 backdrop-blur-sm text-gray-700 hover:bg-white shadow-lg border border-white/50'
-            }`}
+            onClick={recalculateNudges}
+            disabled={recalculating}
+            className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
-            <span>{label}</span>
-            <span className={`text-xs px-3 py-1 rounded-full font-black ${
-              filter === key ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-600'
-            }`}>
-              {count}
-            </span>
+            <Target className="w-5 h-5" />
+            {recalculating ? 'Tracking...' : 'Track Goals'}
           </button>
-        ))}
-      </div>
-      
-      {filteredGoals.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-          {filteredGoals.map((goal, index) => (
-            <div key={goal.id} className="animate-slide-up" style={{animationDelay: `${0.6 + index * 0.1}s`}}>
-              <GoalCard 
-                goal={goal} 
-                onDelete={deleteGoal}
-                onEdit={(goal) => {
-                  setEditingGoal(goal)
-                  setShowForm(true)
-                }}
-              />
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-16 shadow-2xl text-center border border-white/50 animate-fade-in">
-          <div className="w-24 h-24 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl">
-            <Target className="w-12 h-12 text-white" />
-          </div>
-          <h3 className="font-black text-2xl text-gray-800 mb-4">
-            {filter === 'all' ? 'No Goals Yet' : `No ${filter.charAt(0).toUpperCase() + filter.slice(1)} Goals`}
-          </h3>
-          <p className="text-gray-600 mb-8 text-lg">
-            {filter === 'all' 
-              ? 'Create your first financial goal to start tracking your progress'
-              : `You haven't created any ${filter} goals yet. Click below to create one.`
-            }
-          </p>
           <button
             onClick={() => setShowForm(true)}
-            className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-4 rounded-2xl font-bold hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 shadow-xl hover:shadow-2xl transform hover:scale-105"
+            className="flex items-center gap-2 bg-purple-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-purple-700 transition-colors"
           >
-            {filter === 'all' ? 'Create Your First Goal' : `Create ${filter.charAt(0).toUpperCase() + filter.slice(1)} Goal`}
+            <Plus className="w-5 h-5" />
+            New Goal
           </button>
         </div>
-      )}
+      </div>
+
+      <div id="goals-content" className="space-y-8">
+        {/* Nudges Section */}
+        {nudges.length > 0 && (
+          <div className="bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Bell className="w-5 h-5 text-orange-600" />
+                <h3 className="text-lg font-bold text-orange-800">Budget Alerts</h3>
+                <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">{nudges.length}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {nudges.length > 1 && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={prevNudge}
+                      className="p-1 hover:bg-orange-100 rounded-lg transition-colors"
+                    >
+                      <ChevronLeft className="w-4 h-4 text-orange-600" />
+                    </button>
+                    <span className="text-xs text-orange-600 font-semibold px-2">
+                      {currentNudgeIndex + 1} of {nudges.length}
+                    </span>
+                    <button
+                      onClick={nextNudge}
+                      className="p-1 hover:bg-orange-100 rounded-lg transition-colors"
+                    >
+                      <ChevronRight className="w-4 h-4 text-orange-600" />
+                    </button>
+                  </div>
+                )}
+                <button
+                  onClick={() => setNudges([])}
+                  className="text-sm text-orange-600 hover:text-orange-800 font-semibold"
+                >
+                  Clear All
+                </button>
+              </div>
+            </div>
+            {(() => {
+              const nudge = nudges[currentNudgeIndex];
+              const progress = nudge.progressPercent || 0;
+              const spentAmount = nudge.spentAmount || 0;
+              const targetAmount = nudge.targetAmount || 0;
+              const remainingAmount = nudge.remainingAmount || 0;
+              const exceededAmount = nudge.exceededAmount || 0;
+              
+              return (
+                <div className="bg-white rounded-lg p-4 shadow-sm">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-base font-bold text-red-600">{nudge.title || 'Alert'}</span>
+                        <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-semibold">{nudge.goalName || 'Goal'}</span>
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-semibold">{progress.toFixed(1)}%</span>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg p-3 mb-3">
+                        <p className="text-sm text-gray-800 leading-relaxed">{nudge.message}</p>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3 text-xs">
+                        <div className="bg-gray-50 rounded p-2 text-center">
+                          <div className="font-semibold text-gray-800">₹{spentAmount.toLocaleString()}</div>
+                          <div className="text-gray-600">Spent</div>
+                        </div>
+                        <div className="bg-gray-50 rounded p-2 text-center">
+                          <div className="font-semibold text-gray-800">₹{targetAmount.toLocaleString()}</div>
+                          <div className="text-gray-600">Target</div>
+                        </div>
+                        <div className="bg-gray-50 rounded p-2 text-center">
+                          <div className={`font-semibold ${exceededAmount > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                            ₹{exceededAmount > 0 ? exceededAmount.toLocaleString() : remainingAmount.toLocaleString()}
+                          </div>
+                          <div className="text-gray-600">{exceededAmount > 0 ? 'Exceeded' : 'Remaining'}</div>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">
+                        {new Date(nudge.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => markNudgeAsRead(nudge.id)}
+                      className="text-gray-400 hover:text-red-600 ml-3 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="bg-white rounded-2xl p-6 shadow">
+            <div className="flex items-center gap-3 mb-2">
+              <Target className="w-6 h-6 text-purple-600" />
+              <span className="font-bold text-gray-600">Total Goals</span>
+            </div>
+            <div className="text-2xl font-bold">{goals.length}</div>
+          </div>
+          <div className="bg-white rounded-2xl p-6 shadow">
+            <div className="flex items-center gap-3 mb-2">
+              <CheckCircle2 className="w-6 h-6 text-green-600" />
+              <span className="font-bold text-gray-600">Completed</span>
+            </div>
+            <div className="text-2xl font-bold text-green-600">
+              {goals.filter(g => (g.currentAmount / g.targetAmount) >= 1).length}
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl p-6 shadow">
+            <div className="flex items-center gap-3 mb-2">
+              <Clock className="w-6 h-6 text-blue-600" />
+              <span className="font-bold text-gray-600">In Progress</span>
+            </div>
+            <div className="text-2xl font-bold text-blue-600">
+              {goals.filter(g => (g.currentAmount / g.targetAmount) < 1).length}
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl p-6 shadow">
+            <div className="flex items-center gap-3 mb-2">
+              <AlertCircle className="w-6 h-6 text-orange-600" />
+              <span className="font-bold text-gray-600">Total Value</span>
+            </div>
+            <div className="text-2xl font-bold text-orange-600">
+              {formatCurrency(goals.reduce((sum, g) => sum + (g.targetAmount || 0), 0))}
+            </div>
+          </div>
+        </div>
+
+        {/* Goals Grid */}
+        {goals.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {goals.map(goal => (
+              <GoalCard 
+                key={goal.id} 
+                goal={goal} 
+                onDelete={deleteGoal}
+                onEdit={editGoal}
+                onContribute={contributeToGoal}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl p-12 shadow text-center">
+            <Target className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="font-bold text-xl text-gray-600 mb-2">No Goals Yet</h3>
+            <p className="text-gray-500 mb-6">Create your first financial goal to start tracking your progress</p>
+            <button
+              onClick={() => setShowForm(true)}
+              className="bg-purple-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-purple-700 transition-colors"
+            >
+              Create Your First Goal
+            </button>
+          </div>
+        )}
+      </div>
       
       {showForm && (
         <GoalForm
@@ -535,6 +605,57 @@ export default function GoalsPage() {
             setEditingGoal(null)
           }}
         />
+      )}
+      
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md mx-4">
+            <h3 className="font-bold text-xl mb-4 text-red-600">Delete Goal</h3>
+            <p className="text-gray-700 mb-6">
+              Are you sure you want to delete <strong>{deleteConfirm.goalName}</strong>? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="flex-1 py-3 px-4 border border-gray-300 rounded-lg font-bold text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="flex-1 py-3 px-4 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700"
+              >
+                Delete Goal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {deleteAllConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md mx-4">
+            <h3 className="font-bold text-xl mb-4 text-red-600">Delete All Goals</h3>
+            <p className="text-gray-700 mb-6">
+              Are you sure you want to delete <strong>all {goals.length} goals</strong>? This action cannot be undone and will remove all your financial goals permanently.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteAllConfirm(false)}
+                className="flex-1 py-3 px-4 border border-gray-300 rounded-lg font-bold text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={deleteAllGoals}
+                disabled={deletingAll}
+                className="flex-1 py-3 px-4 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 disabled:opacity-50"
+              >
+                {deletingAll ? 'Deleting...' : 'Delete All Goals'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

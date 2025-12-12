@@ -124,7 +124,7 @@ export default function ProfilePage() {
   const handleSave = async () => {
     setLoadingSave(true);
     try {
-      await apiService.put("/user/update", {
+      await apiService.updateUserProfile({
         name: profile.name,
         phoneNumber: profile.phoneNumber,
       });

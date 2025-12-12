@@ -1,468 +1,392 @@
-import React from "react";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowUpCircle, ArrowDownCircle, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import apiService from "../services/api";
+import DownloadButton from "../components/DownloadButton";
+import "../styles/TransactionsPage.css";
 
-const DATE_FILTERS = [
-  { key: "10_days", label: "10 Days", days: 10 },
-  { key: "1_month", label: "1 Month", days: 30 },
-  { key: "3_months", label: "3 Months", days: 90 },
-  { key: "6_months", label: "6 Months", days: 182 },
-  { key: "1_year", label: "1 Year", days: 365 },
-  { key: "all", label: "All Time", days: null },
+const MONTH_OPTIONS = [
+  { value: "current", label: "Current Month" },
+  { value: "last", label: "Last Month" },
+  { value: "custom", label: "Custom Month" },
 ];
 
-const TYPE_FILTERS = [
-  { key: "all", label: "All" },
-  { key: "credit", label: "Credit (+)" },
-  { key: "debit", label: "Debit (-)" },
+const SORT_OPTIONS = [
+  { value: "date_desc", label: "Date (Newest)" },
+  { value: "date_asc", label: "Date (Oldest)" },
+  { value: "amount_desc", label: "Amount (High to Low)" },
+  { value: "amount_asc", label: "Amount (Low to High)" },
 ];
 
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState([]);
   const [accounts, setAccounts] = useState([]);
+  const [selectedAccount, setSelectedAccount] = useState("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  const [accountFilter, setAccountFilter] = useState("all");
-  const [dateFilter, setDateFilter] = useState("10_days");
-  const [typeFilter, setTypeFilter] = useState("all");
-  const [deletingId, setDeletingId] = useState(null);
+  const [monthFilter, setMonthFilter] = useState("current");
+  const [sortFilter, setSortFilter] = useState("date_desc");
+  const [customMonth, setCustomMonth] = useState(new Date().getMonth() + 1);
+  const [customYear, setCustomYear] = useState(new Date().getFullYear());
+  const [deleting, setDeleting] = useState(null);
   const [deletingAll, setDeletingAll] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [aiLoading, setAiLoading] = useState(false);
-  const itemsPerPage = 10;
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
+  // Reset page when filters change
+  useEffect(() => setPage(1), [selectedAccount, monthFilter, sortFilter, customMonth, customYear]);
+
+  // Load accounts on first render
   useEffect(() => {
-    loadTransactions();
     loadAccounts();
   }, []);
+
+  // Reload transactions when filters change
+  useEffect(() => {
+    loadTransactions();
+  }, [selectedAccount, monthFilter, sortFilter, customMonth, customYear]);
+
+  async function loadAccounts() {
+    try {
+      const res = await apiService.getAccounts();
+      setAccounts(Array.isArray(res) ? res : []);
+      console.log('Loaded accounts:', res);
+    } catch (e) {
+      console.error("Error loading accounts:", e);
+      setAccounts([]);
+    }
+  }
 
   async function loadTransactions() {
     try {
       setLoading(true);
       setError(null);
+      
+      // Check if accounts are available
+      if (accounts.length === 0) {
+        setError('Please add a bank account first to view transactions');
+        setTransactions([]);
+        setLoading(false);
+        return;
+      }
+      
+      // Convert selectedAccount to proper format
+      const accountId = selectedAccount !== "all" ? parseInt(selectedAccount) : null;
+      const [sortBy, direction] = sortFilter.split("_");
+      
+      console.log('Loading transactions with:', { selectedAccount, accountId, monthFilter, sortFilter });
+      
+      let data;
+      
+      const finalAccountId = selectedAccount === 'all' ? null : selectedAccount;
+      console.log('Loading transactions with accountId:', finalAccountId);
+      
+      if (monthFilter === "current") {
+        const now = new Date();
+        data = await apiService.getTransactionsByMonth(now.getMonth() + 1, now.getFullYear(), finalAccountId);
+      } else if (monthFilter === "last") {
+        const lastMonth = new Date();
+        lastMonth.setMonth(lastMonth.getMonth() - 1);
+        data = await apiService.getTransactionsByMonth(lastMonth.getMonth() + 1, lastMonth.getFullYear(), finalAccountId);
+      } else if (monthFilter === "custom") {
+        data = await apiService.getTransactionsByMonth(customMonth, customYear, finalAccountId);
+      } else {
+        data = await apiService.getSortedTransactions(sortBy, direction, finalAccountId);
+      }
 
-      const data = await apiService.getTransactions();
-      console.log("Fetched transactions:", data);
+      // Apply sorting to month-filtered data on frontend if needed
+      if (data && Array.isArray(data)) {
+        data.sort((a, b) => {
+          if (sortBy === "date") {
+            const dateA = new Date(a.date);
+            const dateB = new Date(b.date);
+            return direction === "desc" ? dateB - dateA : dateA - dateB;
+          } else if (sortBy === "amount") {
+            const amountA = Number(a.amount);
+            const amountB = Number(b.amount);
+            return direction === "desc" ? amountB - amountA : amountA - amountB;
+          }
+          return 0;
+        });
+      }
 
       setTransactions(Array.isArray(data) ? data : []);
+      console.log('Loaded transactions:', Array.isArray(data) ? data.length : 0, 'items');
     } catch (err) {
-      console.error("Error fetching transactions:", err);
-      setError(err.message);
+      console.error('Error loading transactions:', err);
+      setError(err.message || 'Failed to load transactions');
       setTransactions([]);
     } finally {
       setLoading(false);
     }
   }
 
-  async function loadAccounts() {
-    try {
-      const data = await apiService.getAccounts();
-      console.log('Loaded accounts:', data);
-      const accountsArray = Array.isArray(data) ? data : [];
-      setAccounts(accountsArray);
-      
-      // Auto-select first account if available and no account is currently selected
-      if (accountsArray.length > 0 && accountFilter === "all") {
-        console.log('Auto-selecting first account:', accountsArray[0].id);
-        setAccountFilter(accountsArray[0].id.toString());
-      }
-    } catch (err) {
-      console.error("Error fetching accounts:", err);
-    }
-  }
+  const filtered = transactions;
+  const totalPages = Math.ceil(filtered.length / pageSize) || 1;
+  const pageData = filtered.slice((page - 1) * pageSize, page * pageSize);
 
-  async function handleDeleteTransaction(id) {
-    try {
-      setDeletingId(id);
-      await apiService.deleteTransaction(id);
-      await loadTransactions();
-    } catch (err) {
-      console.error("Error deleting transaction:", err);
-      setError("Failed to delete transaction");
-    } finally {
-      setDeletingId(null);
-    }
-  }
-
-  async function handleDeleteAll() {
-    if (transactions.length === 0) {
-      setError("Nothing to delete");
-      return;
-    }
-    
-    try {
-      setDeletingAll(true);
-      await apiService.deleteAllTransactions();
-      await loadTransactions();
-    } catch (err) {
-      console.error("Error deleting all transactions:", err);
-      setError("Failed to delete all transactions");
-    } finally {
-      setDeletingAll(false);
-    }
-  }
-
-  async function handleAIInsights() {
-    console.log('handleAIInsights called with accountFilter:', accountFilter, typeof accountFilter);
-    console.log('Available accounts:', accounts);
-    
-    if (accountFilter === "all" || !accountFilter || accountFilter === "undefined") {
-      setError("Please select a valid bank account first");
-      return;
-    }
-    
-    // Find the selected account to validate it exists
-    const selectedAccount = accounts.find(acc => acc.id.toString() === accountFilter.toString());
-    if (!selectedAccount) {
-      setError("Selected account not found. Please refresh and try again.");
-      return;
-    }
-    
-    try {
-      setAiLoading(true);
-      const accountId = parseInt(accountFilter);
-      console.log('Selected account:', selectedAccount);
-      console.log('Parsed accountId:', accountId, 'isNaN:', isNaN(accountId));
-      
-      if (isNaN(accountId) || accountId <= 0) {
-        setError("Invalid account ID: " + accountFilter);
-        return;
-      }
-      
-      console.log('Calling analyzeFinancialData with accountId:', accountId);
-      await apiService.analyzeFinancialData(accountId);
-      window.location.href = '/app/insights';
-    } catch (err) {
-      console.error("Error starting AI analysis:", err);
-      setError("Failed to start AI analysis: " + err.message);
-    } finally {
-      setAiLoading(false);
-    }
-  }
-
-  // Compute cutoff date
-  const computeCutoff = (key) => {
-    const f = DATE_FILTERS.find((d) => d.key === key);
-    if (!f || !f.days) return null;
-
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - f.days);
-    cutoff.setHours(0, 0, 0, 0);
-    return cutoff;
-  };
-
-  // Filter transactions
-  const filtered = useMemo(() => {
-    if (!transactions.length) return [];
-
-    console.log('Filtering transactions:', { 
-      totalTransactions: transactions.length, 
-      accountFilter, 
-      dateFilter, 
-      typeFilter,
-      sampleTransaction: transactions[0]
-    });
-
-    const cutoff = computeCutoff(dateFilter);
-
-    return transactions.filter((t) => {
-      // ---- ACCOUNT FILTER ----
-      // Temporarily disabled to show all transactions
-      // if (accountFilter !== "all") {
-      //   const transactionAccountId = t.accountId || t.account_id || t.bankAccountId || t.bank_account_id;
-      //   const selectedAccountId = parseInt(accountFilter);
-      //   if (transactionAccountId !== selectedAccountId) {
-      //     return false;
-      //   }
-      // }
-
-      // ---- DATE FILTER ----
-      if (cutoff) {
-        let txDate = null;
-
-        if (t.date) {
-          txDate = new Date(t.date);
-
-          // Fix for yyyy-mm-dd strings that sometimes fail
-          if (isNaN(txDate.getTime())) {
-            const p = t.date.split("-");
-            if (p.length === 3) {
-              txDate = new Date(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2]));
-            }
-          }
-        }
-
-        if (txDate && !isNaN(txDate.getTime())) {
-          const startDay = new Date(txDate);
-          startDay.setHours(0, 0, 0, 0);
-          if (startDay < cutoff) return false;
-        }
-      }
-
-      // ---- TYPE FILTER (actual fix) ----
-      const type = t.typeTransaction?.toUpperCase(); // CREDIT / DEBIT
-
-      if (typeFilter === "credit" && type !== "CREDIT") return false;
-      if (typeFilter === "debit" && type !== "DEBIT") return false;
-
-      return true;
-    });
-  }, [transactions, accountFilter, dateFilter, typeFilter]);
-
-  // Debug logging
-  console.log('Filtered results:', {
-    originalCount: transactions.length,
-    filteredCount: filtered.length,
-    accountFilter,
-    accounts: accounts.map(a => ({ id: a.id, name: a.bankName }))
-  });
+  const goNext = () => setPage((p) => Math.min(p + 1, totalPages));
+  const goPrev = () => setPage((p) => Math.max(p - 1, 1));
 
   const fmtAmount = (amt) =>
     Number(amt).toLocaleString("en-IN", { maximumFractionDigits: 2 });
 
-  // Pagination
-  const totalPages = Math.ceil(filtered.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedTransactions = filtered.slice(startIndex, startIndex + itemsPerPage);
+  const handleDeleteTransaction = async (transactionId) => {
+    if (!confirm("Are you sure you want to delete this transaction?")) return;
+    try {
+      setDeleting(transactionId);
+      await apiService.deleteTransaction(transactionId);
+      await loadTransactions();
+    } catch (error) {
+      alert("Failed to delete transaction");
+    } finally {
+      setDeleting(null);
+    }
+  };
 
-  // Reset to page 1 when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [accountFilter, dateFilter, typeFilter]);
+  const handleDeleteAllTransactions = async () => {
+    if (!confirm("Are you sure you want to delete ALL transactions? This cannot be undone.")) return;
+    try {
+      setDeletingAll(true);
+      await apiService.deleteAllTransactions();
+      await loadTransactions();
+    } catch (error) {
+      alert("Failed to delete all transactions");
+    } finally {
+      setDeletingAll(false);
+    }
+  };
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Filters */}
-      <div className="bg-white rounded-2xl p-6 shadow">
-        <div className="flex justify-between items-center mb-4">
+    <div className="p-6">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Transactions</h1>
+          <p className="text-gray-600">View all your recent transactions</p>
+        </div>
+        <button
+          onClick={() => window.print()}
+          className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          Download PDF
+        </button>
+      </div>
+
+      <div id="transactions-content" className="transactions-card p-6 shadow-lg rounded-2xl bg-white">
+        <div className="flex justify-between mb-6">
           <div>
-            <p className="text-sm text-gray-600">
-              Showing <span className="font-semibold text-purple-600">{paginatedTransactions.length}</span> of <span className="font-semibold text-purple-600">{filtered.length}</span> transactions from{" "}
-              <strong>{DATE_FILTERS.find(d => d.key === dateFilter)?.label}</strong>
-              {typeFilter !== "all" && (
-                <span> • <strong>{TYPE_FILTERS.find(t => t.key === typeFilter)?.label}</strong></span>
-              )}
+            <h2 className="text-xl font-semibold">Transaction History</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Showing <strong>{filtered.length}</strong> transactions
             </p>
           </div>
 
           <div className="flex gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Delete All</label>
+            {filtered.length > 0 && (
               <button
-                onClick={handleDeleteAll}
+                onClick={handleDeleteAllTransactions}
                 disabled={deletingAll}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 h-[42px]"
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl font-semibold transition-all duration-300 shadow-sm hover:shadow-md transform hover:scale-105 disabled:opacity-50 disabled:transform-none"
               >
                 <Trash2 className="w-4 h-4" />
                 {deletingAll ? "Deleting..." : "Delete All"}
               </button>
-            </div>
-            
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Bank Account</label>
-              <select
-                value={accountFilter}
-                onChange={(e) => {
-                  console.log('Account dropdown changed:', e.target.value, typeof e.target.value);
-                  setAccountFilter(e.target.value);
-                }}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              >
-                <option value="all">All Accounts</option>
-                {accounts.map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.bankName} ••••{account.last4Digits}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Time Period</label>
-              <select
-                value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              >
-                {DATE_FILTERS.map((x) => (
-                  <option key={x.key} value={x.key}>{x.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Transaction Type</label>
-              <select
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              >
-                {TYPE_FILTERS.map((x) => (
-                  <option key={x.key} value={x.key}>{x.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Transactions */}
-      <div className="bg-white rounded-2xl shadow overflow-hidden">
-            {loading && (
-              <div className="p-8 text-center">
-                <div className="animate-spin w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-                <p className="text-gray-600">Loading transactions...</p>
-              </div>
             )}
-            
-            {error && (
-              <div className="p-8 text-center">
-                <p className="text-red-600">{error}</p>
-              </div>
-            )}
+            <select
+              value={selectedAccount}
+              onChange={(e) => {
+                console.log('Account changed to:', e.target.value);
+                setSelectedAccount(e.target.value);
+              }}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white text-gray-700"
+            >
+              <option value="all">Select Bank Account</option>
+              {accounts.map((acc) => (
+                <option key={acc.id} value={acc.id}>
+                  {acc.bankName} ••••{acc.last4Digits}
+                </option>
+              ))}
+            </select>
 
-            {!loading && filtered.length === 0 ? (
-              <div className="p-8 text-center">
-                <p className="text-gray-500 text-lg">No transactions found</p>
-              </div>
-            ) : (
+            <select
+              value={monthFilter}
+              onChange={(e) => setMonthFilter(e.target.value)}
+              className="filter-dropdown"
+            >
+              {MONTH_OPTIONS.map((x) => (
+                <option key={x.value} value={x.value}>
+                  {x.label}
+                </option>
+              ))}
+            </select>
+
+            {monthFilter === "custom" && (
               <>
-                {/* Table Header */}
-                <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                  <div className="grid grid-cols-5 gap-4 text-sm font-semibold text-gray-700">
-                    <div>Date</div>
-                    <div>Merchant</div>
-                    <div>Type</div>
-                    <div className="text-right">Amount</div>
-                    <div className="text-right">Action</div>
-                  </div>
-                </div>
-                
-                {/* Transaction Rows */}
-                <div className="divide-y divide-gray-100">
-                  {paginatedTransactions.map((txn) => {
-                    const amt = Number(txn.amount);
-                    const type = txn.typeTransaction?.toUpperCase();
-                    const isDebit = type === "DEBIT";
-
-                    return (
-                      <div key={txn.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
-                        <div className="grid grid-cols-5 gap-4 items-center">
-                          {/* Date */}
-                          <div>
-                            <div className="font-medium text-gray-900">
-                              {new Date(txn.date).toLocaleDateString()}
-                            </div>
-                          </div>
-                          
-                          {/* Merchant */}
-                          <div>
-                            <div className="font-medium text-gray-900">{txn.merchant}</div>
-                            <div className="text-sm text-gray-500">{txn.notes || 'No description'}</div>
-                          </div>
-                          
-                          {/* Type */}
-                          <div>
-                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                              isDebit 
-                                ? 'bg-red-100 text-red-800' 
-                                : 'bg-green-100 text-green-800'
-                            }`}>
-                              {isDebit ? 'Debit' : 'Credit'}
-                            </span>
-                          </div>
-                          
-                          {/* Amount */}
-                          <div className="text-right">
-                            <div className={`text-lg font-bold ${
-                              isDebit ? 'text-red-600' : 'text-green-600'
-                            }`}>
-                              {isDebit ? '-' : '+'}₹{fmtAmount(Math.abs(amt))}
-                            </div>
-                          </div>
-                          
-                          {/* Delete Button */}
-                          <div className="text-right">
-                            <button
-                              onClick={() => handleDeleteTransaction(txn.id)}
-                              disabled={deletingId === txn.id}
-                              className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors disabled:opacity-50"
-                              title="Delete transaction"
-                            >
-                              {deletingId === txn.id ? (
-                                <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
-                              ) : (
-                                <Trash2 className="w-4 h-4" />
-                              )}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                
-                {/* Bootstrap-style Pagination */}
-                {filtered.length > itemsPerPage && (
-                  <div className="px-6 py-4 border-t border-gray-200">
-                    <nav aria-label="Page navigation">
-                      <ul className="flex items-center justify-center space-x-1">
-                        <li>
-                          <button
-                            onClick={() => setCurrentPage(currentPage - 1)}
-                            disabled={currentPage === 1}
-                            className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-l-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            Previous
-                          </button>
-                        </li>
-                        
-                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                          <li key={page}>
-                            <button
-                              onClick={() => setCurrentPage(page)}
-                              className={`px-3 py-2 text-sm font-medium border ${
-                                currentPage === page
-                                  ? 'bg-purple-600 text-white border-purple-600'
-                                  : 'text-gray-500 bg-white border-gray-300 hover:bg-gray-50'
-                              }`}
-                            >
-                              {page}
-                            </button>
-                          </li>
-                        ))}
-                        
-                        <li>
-                          <button
-                            onClick={() => setCurrentPage(currentPage + 1)}
-                            disabled={currentPage === totalPages}
-                            className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-r-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            Next
-                          </button>
-                        </li>
-                      </ul>
-                    </nav>
-                  </div>
-                )}
-                
-                {/* AI Insights Button */}
-                <div className="px-6 py-6 border-t border-gray-200 text-center">
-                  <h3 className="text-xl font-bold mb-4">Get AI-Powered Insights</h3>
-                  <p className="text-gray-600 mb-6">Analyze your spending patterns and get personalized recommendations</p>
-                  <button
-                    onClick={handleAIInsights}
-                    disabled={accountFilter === "all" || !accountFilter || accountFilter === "undefined"}
-                    className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white px-8 py-4 rounded-xl font-bold shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {accountFilter === "all" || !accountFilter || accountFilter === "undefined" ? "Select Account First" : "View AI Insights"}
-                  </button>
-                </div>
+                <select
+                  value={customMonth}
+                  onChange={(e) => setCustomMonth(parseInt(e.target.value))}
+                  className="filter-dropdown"
+                >
+                  {Array.from({length: 12}, (_, i) => (
+                    <option key={i+1} value={i+1}>
+                      {new Date(0, i).toLocaleString('default', { month: 'long' })}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  value={customYear}
+                  onChange={(e) => setCustomYear(parseInt(e.target.value))}
+                  className="filter-dropdown w-20"
+                  min="2020"
+                  max="2030"
+                />
               </>
             )}
+
+            <select
+              value={sortFilter}
+              onChange={(e) => setSortFilter(e.target.value)}
+              className="filter-dropdown"
+            >
+              {SORT_OPTIONS.map((x) => (
+                <option key={x.value} value={x.value}>
+                  {x.label}
+                </option>
+              ))}
+            </select>
           </div>
+        </div>
+
+        {selectedAccount === "all" ? (
+          <div className="text-center py-20">
+            <div className="bg-purple-50 rounded-2xl p-12 max-w-lg mx-auto">
+              <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg className="w-10 h-10 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">Select Bank Account</h3>
+              <p className="text-gray-600 text-lg">Please select a specific bank account from the dropdown above to view transactions.</p>
+            </div>
+          </div>
+        ) : loading ? (
+          <p className="text-center text-gray-500 py-10">Loading...</p>
+        ) : filtered.length === 0 ? (
+          <p className="text-center text-gray-500 py-10">No transactions found.</p>
+        ) : (
+          <>
+            <div className="overflow-x-auto rounded-xl border border-gray-200">
+              <table className="w-full transactions-table">
+                <thead className="bg-gray-100">
+                  <tr className="text-left text-gray-700">
+                    <th className="p-3 font-semibold">Date</th>
+                    <th className="p-3 font-semibold">Merchant</th>
+                    <th className="p-3 font-semibold">Notes</th>
+                    <th className="p-3 font-semibold text-center">Type</th>
+                    <th className="p-3 font-semibold text-right">Amount</th>
+                    <th className="p-3 font-semibold text-center">Action</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {pageData.map((txn) => {
+                    const type = txn.typeTransaction?.toLowerCase();
+                    const amt = Number(txn.amount);
+
+                    return (
+                      <tr key={txn.id} className="hover:bg-gray-50 transition">
+                        <td className="p-3">{txn.date}</td>
+                        <td className="p-3 font-medium">{txn.merchant}</td>
+                        <td className="p-3 text-gray-600">{txn.notes}</td>
+
+                        <td className="p-3 text-center">
+                          {type === "credit" ? (
+                            <span className="px-3 py-1 rounded-full bg-green-100 text-green-700 text-sm font-semibold">
+                              Credit
+                            </span>
+                          ) : (
+                            <span className="px-3 py-1 rounded-full bg-red-100 text-red-700 text-sm font-semibold">
+                              Debit
+                            </span>
+                          )}
+                        </td>
+
+                        <td
+                          className={`p-3 text-right font-semibold ${
+                            type === "debit" ? "text-red-600" : "text-green-600"
+                          }`}
+                        >
+                          ₹ {fmtAmount(amt)}
+                        </td>
+
+                        <td className="p-3 text-center">
+                          <button
+                            onClick={() => handleDeleteTransaction(txn.id)}
+                            disabled={deleting === txn.id}
+                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200 disabled:opacity-50 hover:scale-110"
+                            title="Delete transaction"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            <div className="flex justify-center items-center mt-6 gap-2">
+              <button
+                onClick={goPrev}
+                disabled={page === 1}
+                className={`px-4 py-2 rounded-full border transition-all ${
+                  page === 1 
+                    ? "bg-gray-100 text-gray-400 cursor-not-allowed" 
+                    : "bg-white hover:bg-gray-100 text-gray-700 border-gray-300"
+                }`}
+              >
+                ← Prev
+              </button>
+
+              <div className="flex gap-2">
+                {[...Array(totalPages)].map((_, i) => {
+                  const pg = i + 1;
+                  return (
+                    <button
+                      key={pg}
+                      onClick={() => setPage(pg)}
+                      className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-medium transition-all ${
+                        page === pg
+                          ? "bg-blue-600 text-white shadow-md"
+                          : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-100"
+                      }`}
+                    >
+                      {pg}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={goNext}
+                disabled={page === totalPages}
+                className={`px-4 py-2 rounded-full border transition-all ${
+                  page === totalPages
+                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                    : "bg-white hover:bg-gray-100 text-gray-700 border-gray-300"
+                }`}
+              >
+                Next →
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
