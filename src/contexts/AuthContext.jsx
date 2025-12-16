@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import apiService from '../services/api'
 
 const AuthContext = createContext(null)
@@ -6,6 +7,7 @@ const AuthContext = createContext(null)
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [checkingTransactions, setCheckingTransactions] = useState(false)
   
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -18,22 +20,45 @@ export function AuthProvider({ children }) {
       
       if (currentTime - parseInt(loginTime) > dayInMs) {
         // Auto logout after 24 hours
-        localStorage.removeItem('token')
-        localStorage.removeItem('user')
-        localStorage.removeItem('loginTime')
-        setUser(null)
+        clearAuthData()
       } else {
         try {
-          setUser(JSON.parse(storedUser))
+          const userData = JSON.parse(storedUser)
+          setUser(userData)
+          // Load fresh profile data to get profile picture
+          loadUserProfile(userData)
         } catch (error) {
-          localStorage.removeItem('token')
-          localStorage.removeItem('user')
-          localStorage.removeItem('loginTime')
+          clearAuthData()
         }
       }
     }
     setLoading(false)
   }, [])
+
+  const loadUserProfile = async (currentUser) => {
+    try {
+      const profile = await apiService.getUserProfile()
+      const updatedUser = {
+        ...currentUser,
+        name: profile.name || currentUser.name,
+        email: profile.email || currentUser.email,
+        profilePicUrl: profile.profilePicUrl,
+        phoneNumber: profile.phoneNumber
+      }
+      setUser(updatedUser)
+      localStorage.setItem('user', JSON.stringify(updatedUser))
+    } catch (error) {
+      console.log('Failed to load profile:', error)
+      // Keep existing user data if profile load fails
+    }
+  }
+
+  const clearAuthData = () => {
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    localStorage.removeItem('loginTime')
+    setUser(null)
+  }
 
   const login = async (email, password) => {
     try {
@@ -42,24 +67,49 @@ export function AuthProvider({ children }) {
       localStorage.setItem('loginTime', Date.now().toString())
       
       // Create user object from login response
-      const user = {
+      let user = {
         userId: response.userId,
         email: response.email || email,
         name: response.name || email.split('@')[0]
       }
       
+      // Try to fetch full profile data including profile picture
+      try {
+        const profileData = await apiService.getUserProfile()
+        user = {
+          ...user,
+          ...profileData,
+          profilePicture: profileData.profilePicture
+        }
+      } catch (profileError) {
+        console.log('Could not fetch profile data:', profileError)
+      }
+      
       localStorage.setItem('user', JSON.stringify(user))
       setUser(user)
+      
+      // Load complete profile data including profile picture
+      loadUserProfile(user)
+      
+      // Show success toast
+      showToast('Login successful!', 'success')
+      
       return user
     } catch (error) {
       throw error
     }
+  }
+  
+  const showToast = (message, type = 'success') => {
+    const event = new CustomEvent('showToast', { detail: { message, type } })
+    window.dispatchEvent(event)
   }
 
   const signup = async (name, email, password, phoneNumber) => {
     try {
       const response = await apiService.register(name, email, password, phoneNumber)
       if (response.userId) {
+        showToast('Registration successful! Please login.', 'success')
         return response // Just return registration response, don't auto-login
       }
       throw new Error('Registration failed')
@@ -68,15 +118,39 @@ export function AuthProvider({ children }) {
     }
   }
 
-  const logout = () => {
-    setUser(null)
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    localStorage.removeItem('loginTime')
+  const logout = async () => {
+    try {
+      await apiService.signout()
+    } catch (error) {
+      console.error('Logout API error:', error)
+    } finally {
+      clearAuthData()
+    }
+  }
+
+  const updateUser = (updatedUserData) => {
+    const updatedUser = { ...user, ...updatedUserData }
+    setUser(updatedUser)
+    localStorage.setItem('user', JSON.stringify(updatedUser))
+  }
+
+  const checkTransactionsAndRedirect = async () => {
+    if (!user) return null
+    
+    setCheckingTransactions(true)
+    try {
+      const result = await apiService.checkTransactionsExist()
+      setCheckingTransactions(false)
+      return result.exists ? '/app/dashboard' : '/app/import'
+    } catch (error) {
+      console.error('Error checking transactions:', error)
+      setCheckingTransactions(false)
+      return '/app/import' // Default to import on error
+    }
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, loading, checkingTransactions, login, signup, logout, updateUser, checkTransactionsAndRedirect }}>
       {children}
     </AuthContext.Provider>
   )

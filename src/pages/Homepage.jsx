@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { Wallet, TrendingUp, Shield, Zap, Target, BarChart3, ArrowRight, Sparkles } from 'lucide-react'
 import './Homepage.css'
+import Logo from '../components/Logo'
 
 const FeatureCard = ({ icon: Icon, title, description }) => (
   <div className="feature-card">
@@ -64,7 +65,7 @@ export default function Homepage() {
             <div className="hero-content">
               <div className="brand-badge">
                 <div className="brand-icon">
-                  <Wallet className="w-4 h-4 text-white" />
+                  <Logo size="sm" />
                 </div>
                 <span className="brand-name">LifeLedger</span>
                 <div className="ai-badge">

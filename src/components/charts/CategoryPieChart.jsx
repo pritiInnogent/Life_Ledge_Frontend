@@ -1,96 +1,38 @@
 import React from 'react'
-import ReactECharts from 'echarts-for-react'
-import styles from './CategoryPieChart.module.css'
 
 export default function CategoryPieChart({ data, title }) {
   const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFF59D', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F']
   
-  const coloredData = data.map((item, index) => ({
-    ...item,
-    itemStyle: {
-      color: colors[index % colors.length],
-      borderRadius: 8,
-      borderColor: '#fff',
-      borderWidth: 3
-    }
-  }))
-
-  const option = {
-    title: {
-      text: title,
-      left: 'center',
-      top: '5%',
-      textStyle: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#1f2937'
-      }
-    },
-    tooltip: {
-      trigger: 'item',
-      formatter: '{b}: ₹{c} ({d}%)',
-      backgroundColor: 'rgba(0,0,0,0.8)',
-      borderColor: '#4f46e5',
-      borderWidth: 2,
-      textStyle: {
-        color: '#fff',
-        fontSize: 14
-      }
-    },
-    legend: {
-      orient: 'vertical',
-      right: '10%',
-      top: 'center',
-      textStyle: {
-        fontSize: 12,
-        color: '#374151'
-      },
-      itemGap: 15
-    },
-    series: [
-      {
-        name: 'Categories',
-        type: 'pie',
-        radius: '60%',
-        center: ['35%', '50%'],
-        data: coloredData,
-        animationType: 'scale',
-        animationEasing: 'elasticOut',
-        animationDelay: (idx) => idx * 100,
-        label: {
-          show: false
-        },
-        labelLine: {
-          show: false
-        },
-        emphasis: {
-          label: {
-            show: true,
-            formatter: '{b}\n{d}%',
-            fontSize: 14,
-            fontWeight: 'bold',
-            color: '#000000'
-          },
-          itemStyle: {
-            shadowBlur: 20,
-            shadowOffsetX: 0,
-            shadowColor: 'rgba(0, 0, 0, 0.3)'
-          },
-          scale: true,
-          scaleSize: 10
-        },
-
-      }
-    ]
-  }
-
+  const total = data.reduce((sum, item) => sum + item.value, 0)
+  
   return (
     <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-shadow duration-300">
-      <ReactECharts 
-        option={option} 
-        style={{ height: '400px', width: '100%' }}
-        opts={{ renderer: 'canvas' }}
-      />
+      <h3 className="text-xl font-bold text-center mb-6 text-gray-800">{title}</h3>
+      
+      {data.length === 0 ? (
+        <div className="text-center text-gray-500 py-8">No data available</div>
+      ) : (
+        <div className="space-y-4">
+          {data.map((item, index) => {
+            const percentage = total > 0 ? ((item.value / total) * 100).toFixed(1) : 0
+            return (
+              <div key={item.name} className="flex items-center justify-between p-3 bg-white rounded-lg shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div 
+                    className="w-4 h-4 rounded-full" 
+                    style={{ backgroundColor: colors[index % colors.length] }}
+                  ></div>
+                  <span className="font-medium text-gray-700">{item.name}</span>
+                </div>
+                <div className="text-right">
+                  <div className="font-bold text-gray-900">₹{item.value.toLocaleString()}</div>
+                  <div className="text-sm text-gray-500">{percentage}%</div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

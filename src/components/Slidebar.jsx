@@ -7,15 +7,14 @@ export default function Sidebar() {
   const pathname = useLocation().pathname;
 
   const navItems = [
+
     { path: "/app/dashboard", label: "Dashboard", icon: Home, emoji: "🏠" },
+    { path: "/app/import", label: "Import", icon: Upload, emoji: "📤" },
     { path: "/app/transactions", label: "Transactions", icon: Receipt, emoji: "💳" },
-    { path: "/app/analytics", label: "Analytics", icon: BarChart3, emoji: "📊" },
     { path: "/app/categories", label: "Categories", icon: PieChart, emoji: "🎨" },
     { path: "/app/recurring", label: "Recurring", icon: Calendar, emoji: "🔄" },
     { path: "/app/goals", label: "Goals", icon: Target, emoji: "🎯" },
-    { path: "/app/insights", label: "AI Insights", icon: TrendingUp, emoji: "🤖" },
-    { path: "/app/import", label: "Import", icon: Upload, emoji: "📤" },
-    { path: "/app/settings", label: "Settings", icon: Settings, emoji: "⚙️" },
+    { path: "/app/insights", label: "Insights", icon: TrendingUp, emoji: "🤖" },
   ];
 
   return (
@@ -38,7 +37,7 @@ export default function Sidebar() {
 
       {/* Sidebar Panel */}
       <aside
-        className={`fixed md:static top-0 left-0 h-full w-72 bg-gradient-to-br from-purple-900 via-blue-900 to-cyan-900 text-white shadow-xl border-r border-purple-400/40
+        className={`fixed top-0 left-0 h-screen w-72 bg-gradient-to-br from-purple-900 via-blue-900 to-cyan-900 text-white shadow-xl border-r border-purple-400/40 overflow-hidden
           transition-transform duration-300 z-50
           ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
       >
@@ -63,7 +62,7 @@ export default function Sidebar() {
           </div>
 
           {/* Navigation */}
-          <nav className="space-y-2">
+          <nav className="space-y-3">
             {navItems.map((item) => {
               const isActive = pathname === item.path;
 
@@ -82,6 +81,18 @@ export default function Sidebar() {
                 </Link>
               );
             })}
+            
+            {/* Logout Button */}
+            <button
+              onClick={() => {
+                localStorage.clear();
+                window.location.href = '/login';
+              }}
+              className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-semibold transition-all text-gray-300 hover:bg-red-500/20 hover:text-red-300 mt-4"
+            >
+              <span className="text-2xl">🚪</span>
+              <span className="text-lg">Logout</span>
+            </button>
           </nav>
 
         </div>
